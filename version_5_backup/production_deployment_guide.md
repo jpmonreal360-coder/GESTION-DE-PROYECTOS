@@ -53,5 +53,3 @@ done
 - Las 12 respuestas devuelven **HTTP 200 OK** con exactamente el mismo `updatedAt` y el mismo payload.
 - Ninguna solicitud devuelve `notFound: true` mientras el workspace exista en la base de datos.
 - Las mutaciones (crear/eliminar proyecto) persisten tras recargar (F5) y entre sesiones independientes sin reaparición de elementos eliminados.
-
-<!-- Auto Trigger Upstash KV Production Sync -->
