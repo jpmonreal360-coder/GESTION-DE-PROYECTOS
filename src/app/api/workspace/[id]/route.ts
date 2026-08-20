@@ -4,101 +4,85 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const KVDB_BUCKET = '6n9f8j7k6l5m4n3b2a1c';
+// Persistent Cloud Database Configuration (Upstash Redis / Vercel KV REST API)
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || 'https://glowing-shrimp-40243.upstash.io';
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || 'AZwzAAlgZWFlMmExYTE0OTk0NGU2YTk4NDQyMDY0YTRlOWRkMTBwNDAyNDM';
+
+// Secondary Persistent DB Fallback (Firebase Realtime DB REST)
 const FIREBASE_DB_URL = 'https://rc-proyectos-default-rtdb.firebaseio.com/workspaces';
-const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/66b0a1a0acd3cb34a87123a1';
 
-function getKvdbUrl(wsId: string): string {
-  return `https://kvdb.io/${KVDB_BUCKET}/ws_${encodeURIComponent(wsId)}`;
+function getRedisKey(wsId: string): string {
+  return `ws_${wsId.trim()}`;
 }
 
-function getFirebaseWorkspaceUrl(wsId: string): string {
-  return `${FIREBASE_DB_URL}/${encodeURIComponent(wsId)}.json`;
-}
+const noCacheHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+  'Surrogate-Control': 'no-store'
+};
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const workspaceId = params.id || 'rc_ws_main';
-
-  const noCacheHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-    'Surrogate-Control': 'no-store'
-  };
+  const redisKey = getRedisKey(workspaceId);
 
   try {
-    // 1. Tier 1: Persistent Public Cloud KV Store (KVDB.io)
-    const kvUrl = getKvdbUrl(workspaceId);
-    const kvRes = await fetch(kvUrl, {
+    // 1. Primary Query: Persistent Upstash Redis / Vercel KV REST Database
+    const res = await fetch(`${UPSTASH_URL}/get/${encodeURIComponent(redisKey)}`, {
       method: 'GET',
       headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
-      },
-      cache: 'no-store'
-    }).catch(() => null);
-
-    if (kvRes && kvRes.ok) {
-      const record = await kvRes.json().catch(() => null);
-      if (record && Array.isArray(record.projects)) {
-        return NextResponse.json(
-          {
-            ...record,
-            workspaceId,
-            updatedAt: Number(record.updatedAt) || Date.now()
-          },
-          { status: 200, headers: noCacheHeaders }
-        );
-      }
-    }
-
-    // 2. Tier 2: Persistent Firebase Realtime DB REST API Fallback
-    const firebaseUrl = getFirebaseWorkspaceUrl(workspaceId);
-    const fbRes = await fetch(firebaseUrl, {
-      method: 'GET',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
-      },
-      cache: 'no-store'
-    }).catch(() => null);
-
-    if (fbRes && fbRes.ok) {
-      const record = await fbRes.json().catch(() => null);
-      if (record && Array.isArray(record.projects)) {
-        return NextResponse.json(
-          {
-            ...record,
-            workspaceId,
-            updatedAt: Number(record.updatedAt) || Date.now()
-          },
-          { status: 200, headers: noCacheHeaders }
-        );
-      }
-    }
-
-    // 3. Tier 3: Secondary JSONBin Persistent Fallback
-    const binRes = await fetch(JSONBIN_URL, {
-      method: 'GET',
-      headers: {
-        'X-Bin-Meta': 'false',
+        'Authorization': `Bearer ${UPSTASH_TOKEN}`,
         'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
       cache: 'no-store'
     }).catch(() => null);
 
-    if (binRes && binRes.ok) {
-      const payload = await binRes.json().catch(() => null);
-      const record = payload ? (payload.record || payload.data || payload) : null;
-      if (record && record.workspaceId === workspaceId && Array.isArray(record.projects)) {
+    if (res && res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && data.result) {
+        let record = data.result;
+        if (typeof record === 'string') {
+          try {
+            record = JSON.parse(record);
+          } catch (e) {
+            // Keep as object if parsing fails
+          }
+        }
+
+        if (record && (record.state || Array.isArray(record.projects))) {
+          const stateData = record.state || record;
+          return NextResponse.json(
+            {
+              ...stateData,
+              workspaceId,
+              updatedAt: Number(record.updatedAt || stateData.updatedAt) || Date.now()
+            },
+            { status: 200, headers: noCacheHeaders }
+          );
+        }
+      }
+    }
+
+    // 2. Secondary Persistent Database Query (Firebase REST API Fallback)
+    const fbRes = await fetch(`${FIREBASE_DB_URL}/${encodeURIComponent(workspaceId)}.json`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      },
+      cache: 'no-store'
+    }).catch(() => null);
+
+    if (fbRes && fbRes.ok) {
+      const fbRecord = await fbRes.json().catch(() => null);
+      if (fbRecord && Array.isArray(fbRecord.projects)) {
         return NextResponse.json(
           {
-            ...record,
+            ...fbRecord,
             workspaceId,
-            updatedAt: Number(record.updatedAt) || Date.now()
+            updatedAt: Number(fbRecord.updatedAt) || Date.now()
           },
           { status: 200, headers: noCacheHeaders }
         );
@@ -106,10 +90,10 @@ export async function GET(
     }
 
   } catch (err: any) {
-    console.error('Error al leer el workspace de la base de datos:', err);
+    console.error('Error al leer de la base de datos persistente:', err);
   }
 
-  // Not found in persistent DB
+  // Not found in persistent DB: return notFound: true with HTTP 200
   return NextResponse.json(
     { workspaceId, notFound: true },
     { status: 200, headers: noCacheHeaders }
@@ -120,56 +104,66 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const noCacheHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    'Pragma': 'no-cache'
-  };
-
   try {
     const workspaceId = params.id || 'rc_ws_main';
     const payload = await request.json();
 
-    if (!payload || !Array.isArray(payload.projects)) {
+    if (!payload || payload.workspaceId !== workspaceId || !Array.isArray(payload.projects)) {
       return NextResponse.json(
-        { error: 'Payload inválido: debe contener un arreglo de proyectos.' },
+        { error: 'Payload inválido: workspaceId desalineado o projects no es un arreglo.' },
         { status: 400, headers: noCacheHeaders }
       );
     }
 
     const updatedAt = Number(payload.updatedAt) || Date.now();
     const recordState = {
-      ...payload,
+      id: workspaceId,
       workspaceId,
+      state: payload,
+      projects: payload.projects,
+      expenses: payload.expenses,
+      tasks: payload.tasks,
+      documents: payload.documents,
+      wikiDocs: payload.wikiDocs,
+      categories: payload.categories,
+      projectCategories: payload.projectCategories,
       updatedAt
     };
 
-    // Upsert into Persistent KV Cloud Store (KVDB.io)
-    const kvUrl = getKvdbUrl(workspaceId);
-    await fetch(kvUrl, {
+    const redisKey = getRedisKey(workspaceId);
+    const jsonString = JSON.stringify(recordState);
+
+    // Atomic Upsert in Persistent Upstash Redis / Vercel KV REST DB
+    const upstashRes = await fetch(`${UPSTASH_URL}/set/${encodeURIComponent(redisKey)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recordState)
+      headers: {
+        'Authorization': `Bearer ${UPSTASH_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: jsonString
     }).catch(() => null);
 
-    // Also update Firebase Realtime DB REST asynchronously
-    const firebaseUrl = getFirebaseWorkspaceUrl(workspaceId);
-    fetch(firebaseUrl, {
+    // Asynchronous secondary write to Firebase Realtime DB REST
+    fetch(`${FIREBASE_DB_URL}/${encodeURIComponent(workspaceId)}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recordState)
+      body: jsonString
     }).catch(() => null);
 
-    // Also update secondary JSONBin store asynchronously
-    fetch(JSONBIN_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recordState)
-    }).catch(() => null);
+    if (upstashRes && upstashRes.ok) {
+      return NextResponse.json(
+        {
+          ...payload,
+          workspaceId,
+          updatedAt
+        },
+        { status: 200, headers: noCacheHeaders }
+      );
+    }
 
     return NextResponse.json(
       {
-        ...recordState,
-        success: true,
+        ...payload,
         workspaceId,
         updatedAt
       },
@@ -177,7 +171,7 @@ export async function PUT(
     );
 
   } catch (err: any) {
-    console.error('Error al guardar el workspace en la base de datos:', err);
+    console.error('Error al guardar en la base de datos persistente:', err);
     return NextResponse.json(
       { error: 'Error procesando la solicitud en el servidor.', details: err.message },
       { status: 500, headers: noCacheHeaders }
