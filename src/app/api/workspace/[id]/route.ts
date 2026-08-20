@@ -5,18 +5,15 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Persistent Cloud Database Configuration (Upstash Redis / Vercel KV REST API)
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || 'https://glowing-shrimp-40243.upstash.io';
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || 'AZwzAAlgZWFlMmExYTE0OTk0NGU2YTk4NDQyMDY0YTRlOWRkMTBwNDAyNDM';
-
-// Secondary Persistent DB Fallback (Firebase Realtime DB REST)
-const FIREBASE_DB_URL = 'https://rc-proyectos-default-rtdb.firebaseio.com/workspaces';
+const DB_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || 'https://glowing-shrimp-40243.upstash.io';
+const DB_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || 'AZwzAAlgZWFlMmExYTE0OTk0NGU2YTk4NDQyMDY0YTRlOWRkMTBwNDAyNDM';
 
 function getRedisKey(wsId: string): string {
   return `ws_${wsId.trim()}`;
 }
 
 const noCacheHeaders = {
-  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
   'Pragma': 'no-cache',
   'Expires': '0',
   'Surrogate-Control': 'no-store'
@@ -29,12 +26,19 @@ export async function GET(
   const workspaceId = params.id || 'rc_ws_main';
   const redisKey = getRedisKey(workspaceId);
 
+  if (!DB_URL || !DB_TOKEN) {
+    return NextResponse.json(
+      { error: 'Configuración de base de datos persistente no encontrada.' },
+      { status: 500, headers: noCacheHeaders }
+    );
+  }
+
   try {
-    // 1. Primary Query: Persistent Upstash Redis / Vercel KV REST Database
-    const res = await fetch(`${UPSTASH_URL}/get/${encodeURIComponent(redisKey)}`, {
+    // Query Single Source of Truth Persistent Cloud Database (Upstash Redis / Vercel KV REST)
+    const res = await fetch(`${DB_URL}/get/${encodeURIComponent(redisKey)}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${UPSTASH_TOKEN}`,
+        'Authorization': `Bearer ${DB_TOKEN}`,
         'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
       cache: 'no-store'
@@ -65,35 +69,14 @@ export async function GET(
         }
       }
     }
-
-    // 2. Secondary Persistent Database Query (Firebase REST API Fallback)
-    const fbRes = await fetch(`${FIREBASE_DB_URL}/${encodeURIComponent(workspaceId)}.json`, {
-      method: 'GET',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      },
-      cache: 'no-store'
-    }).catch(() => null);
-
-    if (fbRes && fbRes.ok) {
-      const fbRecord = await fbRes.json().catch(() => null);
-      if (fbRecord && Array.isArray(fbRecord.projects)) {
-        return NextResponse.json(
-          {
-            ...fbRecord,
-            workspaceId,
-            updatedAt: Number(fbRecord.updatedAt) || Date.now()
-          },
-          { status: 200, headers: noCacheHeaders }
-        );
-      }
-    }
-
   } catch (err: any) {
-    console.error('Error al leer de la base de datos persistente:', err);
+    return NextResponse.json(
+      { error: 'Error al consultar la base de datos persistente.', details: err.message },
+      { status: 500, headers: noCacheHeaders }
+    );
   }
 
-  // Not found in persistent DB: return notFound: true with HTTP 200
+  // Record not found in persistent DB: return notFound: true
   return NextResponse.json(
     { workspaceId, notFound: true },
     { status: 200, headers: noCacheHeaders }
@@ -104,8 +87,16 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const workspaceId = params.id || 'rc_ws_main';
+
+  if (!DB_URL || !DB_TOKEN) {
+    return NextResponse.json(
+      { error: 'Configuración de base de datos persistente no encontrada.' },
+      { status: 500, headers: noCacheHeaders }
+    );
+  }
+
   try {
-    const workspaceId = params.id || 'rc_ws_main';
     const payload = await request.json();
 
     if (!payload || payload.workspaceId !== workspaceId || !Array.isArray(payload.projects)) {
@@ -116,7 +107,7 @@ export async function PUT(
     }
 
     const updatedAt = Number(payload.updatedAt) || Date.now();
-    const recordState = {
+    const record = {
       id: workspaceId,
       workspaceId,
       state: payload,
@@ -131,33 +122,22 @@ export async function PUT(
     };
 
     const redisKey = getRedisKey(workspaceId);
-    const jsonString = JSON.stringify(recordState);
+    const jsonString = JSON.stringify(record);
 
-    // Atomic Upsert in Persistent Upstash Redis / Vercel KV REST DB
-    const upstashRes = await fetch(`${UPSTASH_URL}/set/${encodeURIComponent(redisKey)}`, {
+    // Atomic Upsert into Persistent Cloud Database
+    const res = await fetch(`${DB_URL}/set/${encodeURIComponent(redisKey)}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${UPSTASH_TOKEN}`,
+        'Authorization': `Bearer ${DB_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: jsonString
     }).catch(() => null);
 
-    // Asynchronous secondary write to Firebase Realtime DB REST
-    fetch(`${FIREBASE_DB_URL}/${encodeURIComponent(workspaceId)}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: jsonString
-    }).catch(() => null);
-
-    if (upstashRes && upstashRes.ok) {
+    if (!res || !res.ok) {
       return NextResponse.json(
-        {
-          ...payload,
-          workspaceId,
-          updatedAt
-        },
-        { status: 200, headers: noCacheHeaders }
+        { error: 'Fallo al ejecutar el upsert en la base de datos persistente.' },
+        { status: 500, headers: noCacheHeaders }
       );
     }
 
@@ -171,9 +151,8 @@ export async function PUT(
     );
 
   } catch (err: any) {
-    console.error('Error al guardar en la base de datos persistente:', err);
     return NextResponse.json(
-      { error: 'Error procesando la solicitud en el servidor.', details: err.message },
+      { error: 'Error guardando en la base de datos persistente.', details: err.message },
       { status: 500, headers: noCacheHeaders }
     );
   }

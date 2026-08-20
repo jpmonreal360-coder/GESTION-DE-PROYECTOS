@@ -16,6 +16,17 @@ import { Project, Expense, Task, Document, WikiDoc } from '@/types';
 import { realtimeSync, SyncPayload, SaveStatus, urlSafeEncodeObj, urlSafeDecodeStr } from '@/lib/firebaseSync';
 import { X, Copy, CheckCircle } from 'lucide-react';
 
+interface WorkspaceState {
+  isCustomized: boolean;
+  projects: Project[];
+  expenses: Expense[];
+  tasks: Task[];
+  documents: Document[];
+  wikiDocs: WikiDoc[];
+  categories: string[];
+  projectCategories: string[];
+}
+
 export default function Home() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [activeProjectFilter, setActiveProjectFilter] = useState<string>('all');
@@ -43,26 +54,7 @@ export default function Home() {
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareableUrl, setShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [isCustomized, setIsCustomized] = useState<boolean>(false);
   const [workspaceId, setWorkspaceId] = useState<string>('rc_ws_main');
-
-  // Categories State
-  const [categories, setCategories] = useState<string[]>([
-    'Facturación / Cobro',
-    'Software & Cloud',
-    'Diseño UI/UX',
-    'Desarrollo Frontend/Backend',
-    'Infraestructura & Server',
-    'Marketing & Ads'
-  ]);
-
-  const [projectCategories, setProjectCategories] = useState<string[]>([
-    'Mobile App',
-    'Web App',
-    'Design',
-    'Infrastructure',
-    'Marketing'
-  ]);
 
   // Default Mock Projects
   const defaultProjects: Project[] = [
@@ -127,11 +119,30 @@ export default function Home() {
     }
   ];
 
-  const [projects, setProjects] = useState<Project[]>(defaultProjects);
-  const [expenses, setExpenses] = useState<Expense[]>(defaultExpenses);
-  const [tasks, setTasks] = useState<Task[]>(defaultTasks);
-  const [documents, setDocuments] = useState<Document[]>(defaultDocuments);
-  const [wikiDocs, setWikiDocs] = useState<WikiDoc[]>(defaultWikiDocs);
+  // Single Unified Workspace State
+  const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({
+    isCustomized: false,
+    projects: defaultProjects,
+    expenses: defaultExpenses,
+    tasks: defaultTasks,
+    documents: defaultDocuments,
+    wikiDocs: defaultWikiDocs,
+    categories: [
+      'Facturación / Cobro',
+      'Software & Cloud',
+      'Diseño UI/UX',
+      'Desarrollo Frontend/Backend',
+      'Infraestructura & Server',
+      'Marketing & Ads'
+    ],
+    projectCategories: [
+      'Mobile App',
+      'Web App',
+      'Design',
+      'Infrastructure',
+      'Marketing'
+    ]
+  });
 
   // Serialized Save Queue to prevent concurrent PUT requests
   const queueSave = useCallback((snapshot: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>) => {
@@ -142,16 +153,32 @@ export default function Home() {
     return saveQueue.current;
   }, []);
 
-  // 2. Apply Workspace State without triggering an auto-save
+  // Function to apply workspace state without triggering an auto-save
   const applyWorkspaceState = useCallback((data: any) => {
     skipNextCloudSave.current = true;
-    if (Array.isArray(data.projects)) setProjects(data.projects);
-    if (Array.isArray(data.expenses)) setExpenses(data.expenses);
-    if (Array.isArray(data.tasks)) setTasks(data.tasks);
-    if (Array.isArray(data.documents)) setDocuments(data.documents);
-    if (Array.isArray(data.wikiDocs)) setWikiDocs(data.wikiDocs);
-    if (Array.isArray(data.categories)) setCategories(data.categories);
-    if (Array.isArray(data.projectCategories)) setProjectCategories(data.projectCategories);
+    setWorkspaceState({
+      isCustomized: true,
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      expenses: Array.isArray(data.expenses) ? data.expenses : [],
+      tasks: Array.isArray(data.tasks) ? data.tasks : [],
+      documents: Array.isArray(data.documents) ? data.documents : [],
+      wikiDocs: Array.isArray(data.wikiDocs) ? data.wikiDocs : [],
+      categories: Array.isArray(data.categories) ? data.categories : [
+        'Facturación / Cobro',
+        'Software & Cloud',
+        'Diseño UI/UX',
+        'Desarrollo Frontend/Backend',
+        'Infraestructura & Server',
+        'Marketing & Ads'
+      ],
+      projectCategories: Array.isArray(data.projectCategories) ? data.projectCategories : [
+        'Mobile App',
+        'Web App',
+        'Design',
+        'Infrastructure',
+        'Marketing'
+      ]
+    });
     const ts = Number(data.updatedAt ?? 0);
     lastRemoteTimestamp.current = ts;
     realtimeSync.setLastRemoteTimestamp(ts);
@@ -161,28 +188,62 @@ export default function Home() {
     skipNextCloudSave.current = true;
     const savedCustomized = localStorage.getItem('rc_is_customized');
     if (savedCustomized === 'true') {
-      setIsCustomized(true);
       const savedProjects = localStorage.getItem('rc_projects');
-      if (savedProjects) setProjects(JSON.parse(savedProjects));
       const savedExpenses = localStorage.getItem('rc_expenses');
-      if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
       const savedTasks = localStorage.getItem('rc_tasks');
-      if (savedTasks) setTasks(JSON.parse(savedTasks));
       const savedDocs = localStorage.getItem('rc_docs');
-      if (savedDocs) setDocuments(JSON.parse(savedDocs));
       const savedWiki = localStorage.getItem('rc_wiki');
-      if (savedWiki) setWikiDocs(JSON.parse(savedWiki));
       const savedCategories = localStorage.getItem('rc_categories');
-      if (savedCategories) setCategories(JSON.parse(savedCategories));
       const savedPrjCat = localStorage.getItem('rc_prj_categories');
-      if (savedPrjCat) setProjectCategories(JSON.parse(savedPrjCat));
+
+      setWorkspaceState({
+        isCustomized: true,
+        projects: savedProjects ? JSON.parse(savedProjects) : defaultProjects,
+        expenses: savedExpenses ? JSON.parse(savedExpenses) : defaultExpenses,
+        tasks: savedTasks ? JSON.parse(savedTasks) : defaultTasks,
+        documents: savedDocs ? JSON.parse(savedDocs) : defaultDocuments,
+        wikiDocs: savedWiki ? JSON.parse(savedWiki) : defaultWikiDocs,
+        categories: savedCategories ? JSON.parse(savedCategories) : [
+          'Facturación / Cobro',
+          'Software & Cloud',
+          'Diseño UI/UX',
+          'Desarrollo Frontend/Backend',
+          'Infraestructura & Server',
+          'Marketing & Ads'
+        ],
+        projectCategories: savedPrjCat ? JSON.parse(savedPrjCat) : [
+          'Mobile App',
+          'Web App',
+          'Design',
+          'Infrastructure',
+          'Marketing'
+        ]
+      });
     } else {
       // Do NOT auto-publish seed data
-      setProjects(defaultProjects);
-      setExpenses(defaultExpenses);
-      setTasks(defaultTasks);
-      setDocuments(defaultDocuments);
-      setWikiDocs(defaultWikiDocs);
+      setWorkspaceState({
+        isCustomized: false,
+        projects: defaultProjects,
+        expenses: defaultExpenses,
+        tasks: defaultTasks,
+        documents: defaultDocuments,
+        wikiDocs: defaultWikiDocs,
+        categories: [
+          'Facturación / Cobro',
+          'Software & Cloud',
+          'Diseño UI/UX',
+          'Desarrollo Frontend/Backend',
+          'Infraestructura & Server',
+          'Marketing & Ads'
+        ],
+        projectCategories: [
+          'Mobile App',
+          'Web App',
+          'Design',
+          'Infrastructure',
+          'Marketing'
+        ]
+      });
     }
   }, [defaultProjects, defaultExpenses, defaultTasks, defaultDocuments, defaultWikiDocs]);
 
@@ -193,7 +254,7 @@ export default function Home() {
     });
   }, []);
 
-  // 3. Single asynchronous bootstrap useEffect on mount
+  // Single asynchronous bootstrap useEffect on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -249,18 +310,18 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
 
-  // 4. Centralized Automatic Persistence Effect (Executed ONLY AFTER hydrated === true)
+  // Centralized Automatic Persistence Effect (Executed ONLY AFTER hydrated === true)
   useEffect(() => {
     if (!hydrated) return;
 
     localStorage.setItem('rc_is_customized', 'true');
-    localStorage.setItem('rc_projects', JSON.stringify(projects));
-    localStorage.setItem('rc_expenses', JSON.stringify(expenses));
-    localStorage.setItem('rc_tasks', JSON.stringify(tasks));
-    localStorage.setItem('rc_docs', JSON.stringify(documents));
-    localStorage.setItem('rc_wiki', JSON.stringify(wikiDocs));
-    localStorage.setItem('rc_categories', JSON.stringify(categories));
-    localStorage.setItem('rc_prj_categories', JSON.stringify(projectCategories));
+    localStorage.setItem('rc_projects', JSON.stringify(workspaceState.projects));
+    localStorage.setItem('rc_expenses', JSON.stringify(workspaceState.expenses));
+    localStorage.setItem('rc_tasks', JSON.stringify(workspaceState.tasks));
+    localStorage.setItem('rc_docs', JSON.stringify(workspaceState.documents));
+    localStorage.setItem('rc_wiki', JSON.stringify(workspaceState.wikiDocs));
+    localStorage.setItem('rc_categories', JSON.stringify(workspaceState.categories));
+    localStorage.setItem('rc_prj_categories', JSON.stringify(workspaceState.projectCategories));
 
     if (skipNextCloudSave.current) {
       skipNextCloudSave.current = false;
@@ -269,30 +330,20 @@ export default function Home() {
 
     void queueSave({
       isCustomized: true,
-      projects,
-      expenses,
-      tasks,
-      documents,
-      wikiDocs,
-      categories,
-      projectCategories,
+      projects: workspaceState.projects,
+      expenses: workspaceState.expenses,
+      tasks: workspaceState.tasks,
+      documents: workspaceState.documents,
+      wikiDocs: workspaceState.wikiDocs,
+      categories: workspaceState.categories,
+      projectCategories: workspaceState.projectCategories,
     }).catch((error) => {
       console.error("Error al guardar en la nube", error);
       setSaveStatus("error");
     });
-  }, [
-    hydrated,
-    projects,
-    expenses,
-    tasks,
-    documents,
-    wikiDocs,
-    categories,
-    projectCategories,
-    queueSave,
-  ]);
+  }, [hydrated, workspaceState, queueSave]);
 
-  // 5. Subscription/Polling installed ONLY AFTER hydrated === true with proper cleanup
+  // Subscription/Polling installed ONLY AFTER hydrated === true with proper cleanup
   useEffect(() => {
     if (!hydrated) return;
 
@@ -337,13 +388,13 @@ export default function Home() {
   const handleSaveToCloudManual = useCallback(async () => {
     const stateObj = {
       isCustomized: true,
-      projects,
-      expenses,
-      tasks,
-      documents,
-      wikiDocs,
-      categories,
-      projectCategories,
+      projects: workspaceState.projects,
+      expenses: workspaceState.expenses,
+      tasks: workspaceState.tasks,
+      documents: workspaceState.documents,
+      wikiDocs: workspaceState.wikiDocs,
+      categories: workspaceState.categories,
+      projectCategories: workspaceState.projectCategories,
     };
 
     const isSuccess = await queueSave(stateObj);
@@ -352,7 +403,7 @@ export default function Home() {
     } else {
       triggerToast('⚠️ No se pudo conectar al servidor remoto. Usa el enlace compartido para enviar los datos.');
     }
-  }, [projects, expenses, tasks, documents, wikiDocs, categories, projectCategories, queueSave]);
+  }, [workspaceState, queueSave]);
 
   // Generate Shared Link with Full Base64 URL-Safe State (#state=encodedData)
   const handleShareLink = async () => {
@@ -361,13 +412,13 @@ export default function Home() {
       const stateObj = {
         workspaceId,
         isCustomized: true,
-        projects,
-        expenses,
-        tasks,
-        documents,
-        wikiDocs,
-        categories,
-        projectCategories,
+        projects: workspaceState.projects,
+        expenses: workspaceState.expenses,
+        tasks: workspaceState.tasks,
+        documents: workspaceState.documents,
+        wikiDocs: workspaceState.wikiDocs,
+        categories: workspaceState.categories,
+        projectCategories: workspaceState.projectCategories,
         updatedAt: Date.now()
       };
 
@@ -405,7 +456,7 @@ export default function Home() {
     }
   };
 
-  // Single Path of Persistence: CRUD handlers ONLY mutate local React state!
+  // Single Path of Persistence: CRUD handlers ONLY mutate local workspaceState!
   const handleOpenNewProjectModal = () => {
     setProjectToEdit(null);
     setIsProjectModalOpen(true);
@@ -417,52 +468,62 @@ export default function Home() {
   };
 
   const handleSaveProject = (data: Partial<Project>) => {
-    setIsCustomized(true);
+    setWorkspaceState(prev => {
+      const newPrjCategories = data.category && !prev.projectCategories.includes(data.category)
+        ? [...prev.projectCategories, data.category]
+        : prev.projectCategories;
 
-    if (data.category && !projectCategories.includes(data.category)) {
-      setProjectCategories(prev => [...prev, data.category!]);
-    }
+      let newProjects: Project[];
+      if (data.id) {
+        newProjects = prev.projects.map(p => p.id === data.id ? { ...p, ...data } as Project : p);
+      } else {
+        const newPrj: Project = {
+          id: 'PRJ-' + Date.now(),
+          name: data.name || 'Nuevo Proyecto',
+          code: data.code || 'PRJ-04',
+          budget: data.budget || 16450,
+          totalBudget: data.budget || 16450,
+          spent: 0,
+          spentBudget: 0,
+          category: data.category || 'Mobile App',
+          startDate: data.startDate,
+          endDate: data.endDate,
+          color: '#007AFF'
+        };
+        newProjects = [...prev.projects, newPrj];
+        setActiveProjectFilter(newPrj.id);
+      }
 
-    if (data.id) {
-      setProjects(prev => prev.map(p => p.id === data.id ? { ...p, ...data } as Project : p));
-    } else {
-      const newPrj: Project = {
-        id: 'PRJ-' + Date.now(),
-        name: data.name || 'Nuevo Proyecto',
-        code: data.code || 'PRJ-04',
-        budget: data.budget || 16450,
-        totalBudget: data.budget || 16450,
-        spent: 0,
-        spentBudget: 0,
-        category: data.category || 'Mobile App',
-        startDate: data.startDate,
-        endDate: data.endDate,
-        color: '#007AFF'
+      return {
+        ...prev,
+        isCustomized: true,
+        projects: newProjects,
+        projectCategories: newPrjCategories
       };
-      setProjects(prev => [...prev, newPrj]);
-      setActiveProjectFilter(newPrj.id);
-    }
+    });
 
     triggerToast('✅ Proyecto guardado exitosamente.');
   };
 
   const handleDeleteProject = (id: string) => {
-    const prj = projects.find(p => p.id === id);
+    const prj = workspaceState.projects.find(p => p.id === id);
     if (!prj) return;
 
-    if (confirm(`¿Eliminar el proyecto "${prj.name}"? Se borrarán sus transacciones, tareas y documentos en la nube.`)) {
-      setIsCustomized(true);
-      setProjects(prev => prev.filter(p => p.id !== id));
-      setExpenses(prev => prev.filter(e => e.projectId !== id));
-      setTasks(prev => prev.filter(t => t.projectId !== id));
-      setDocuments(prev => prev.filter(d => d.projectId !== id));
-      if (activeProjectFilter === id) setActiveProjectFilter('all');
+    if (confirm(`¿Eliminar el proyecto "${prj.name}"? Se borrarán sus transacciones, tareas y documentos asociados.`)) {
+      setWorkspaceState(prev => ({
+        ...prev,
+        isCustomized: true,
+        projects: prev.projects.filter(p => p.id !== id),
+        expenses: prev.expenses.filter(e => e.projectId !== id),
+        tasks: prev.tasks.filter(t => t.projectId !== id),
+        documents: prev.documents.filter(d => d.projectId !== id)
+      }));
 
+      if (activeProjectFilter === id) setActiveProjectFilter('all');
       triggerToast(`🗑️ Proyecto "${prj.name}" y sus datos fueron ELIMINADOS.`);
     }
   };
 
-  // Action Modal Handlers: Single Path of Persistence
   const handleOpenNewActionModal = (type: 'expense' | 'task' | 'doc' = 'doc') => {
     setEditType(null);
     setEditItem(null);
@@ -470,102 +531,133 @@ export default function Home() {
   };
 
   const handleSaveExpense = (data: Partial<Expense>) => {
-    setIsCustomized(true);
+    setWorkspaceState(prev => {
+      const newCategories = data.category && !prev.categories.includes(data.category)
+        ? [...prev.categories, data.category]
+        : prev.categories;
 
-    if (data.category && !categories.includes(data.category)) {
-      setCategories(prev => [...prev, data.category!]);
-    }
+      let newExpenses: Expense[];
+      if (data.id) {
+        newExpenses = prev.expenses.map(e => e.id === data.id ? { ...e, ...data } as Expense : e);
+      } else {
+        const newExp: Expense = {
+          id: 'exp-' + Date.now(),
+          type: data.type || 'EXPENSE',
+          concept: data.concept || 'Nuevo Registro',
+          amount: data.amount || 0,
+          category: data.category || 'General',
+          projectId: data.projectId || prev.projects[0]?.id || 'PRJ-01',
+          date: data.date || new Date().toISOString().split('T')[0],
+          status: 'PAID'
+        };
+        newExpenses = [newExp, ...prev.expenses];
+      }
 
-    if (data.id) {
-      setExpenses(prev => prev.map(e => e.id === data.id ? { ...e, ...data } as Expense : e));
-    } else {
-      const newExp: Expense = {
-        id: 'exp-' + Date.now(),
-        type: data.type || 'EXPENSE',
-        concept: data.concept || 'Nuevo Registro',
-        amount: data.amount || 0,
-        category: data.category || 'General',
-        projectId: data.projectId || projects[0]?.id || 'PRJ-01',
-        date: data.date || new Date().toISOString().split('T')[0],
-        status: 'PAID'
+      return {
+        ...prev,
+        isCustomized: true,
+        expenses: newExpenses,
+        categories: newCategories
       };
-      setExpenses(prev => [newExp, ...prev]);
-    }
+    });
 
     triggerToast('✅ Transacción guardada exitosamente.');
   };
 
   const handleDeleteExpense = (id: string) => {
     if (confirm('¿Eliminar esta transacción financiera?')) {
-      setIsCustomized(true);
-      setExpenses(prev => prev.filter(e => e.id !== id));
+      setWorkspaceState(prev => ({
+        ...prev,
+        isCustomized: true,
+        expenses: prev.expenses.filter(e => e.id !== id)
+      }));
       triggerToast('🗑️ Transacción eliminada.');
     }
   };
 
   const handleSaveTask = (data: Partial<Task>) => {
-    setIsCustomized(true);
+    setWorkspaceState(prev => {
+      let newTasks: Task[];
+      if (data.id) {
+        newTasks = prev.tasks.map(t => t.id === data.id ? { ...t, ...data } as Task : t);
+      } else {
+        const newTask: Task = {
+          id: 'tsk-' + Date.now(),
+          title: data.title || 'Nueva Tarea',
+          status: 'TODO',
+          priority: data.priority || 'MEDIUM',
+          projectId: data.projectId || prev.projects[0]?.id || 'PRJ-01',
+          assigneeName: data.assigneeName || 'Edmundo A.',
+          assignee: data.assigneeName || 'Edmundo A.',
+          dueDate: data.dueDate || new Date().toISOString().split('T')[0],
+          tags: ['Asignado']
+        };
+        newTasks = [newTask, ...prev.tasks];
+      }
 
-    if (data.id) {
-      setTasks(prev => prev.map(t => t.id === data.id ? { ...t, ...data } as Task : t));
-    } else {
-      const newTask: Task = {
-        id: 'tsk-' + Date.now(),
-        title: data.title || 'Nueva Tarea',
-        status: 'TODO',
-        priority: data.priority || 'MEDIUM',
-        projectId: data.projectId || projects[0]?.id || 'PRJ-01',
-        assigneeName: data.assigneeName || 'Edmundo A.',
-        assignee: data.assigneeName || 'Edmundo A.',
-        dueDate: data.dueDate || new Date().toISOString().split('T')[0],
-        tags: ['Asignado']
+      return {
+        ...prev,
+        isCustomized: true,
+        tasks: newTasks
       };
-      setTasks(prev => [newTask, ...prev]);
-    }
+    });
 
     triggerToast('✅ Tarea guardada exitosamente.');
   };
 
   const handleDeleteTask = (id: string) => {
     if (confirm('¿Eliminar esta tarea?')) {
-      setIsCustomized(true);
-      setTasks(prev => prev.filter(t => t.id !== id));
+      setWorkspaceState(prev => ({
+        ...prev,
+        isCustomized: true,
+        tasks: prev.tasks.filter(t => t.id !== id)
+      }));
       triggerToast('🗑️ Tarea eliminada.');
     }
   };
 
   const handleAdvanceTaskStatus = (id: string) => {
-    setIsCustomized(true);
-    setTasks(prev => prev.map(t => {
-      if (t.id !== id) return t;
-      const statuses: ('TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED')[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
-      const curIndex = statuses.indexOf(t.status as any);
-      const nextStatus = statuses[(curIndex + 1) % statuses.length];
-      return { ...t, status: nextStatus };
+    setWorkspaceState(prev => ({
+      ...prev,
+      isCustomized: true,
+      tasks: prev.tasks.map(t => {
+        if (t.id !== id) return t;
+        const statuses: ('TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED')[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
+        const curIndex = statuses.indexOf(t.status as any);
+        const nextStatus = statuses[(curIndex + 1) % statuses.length];
+        return { ...t, status: nextStatus };
+      })
     }));
   };
 
   const handleSaveDocument = (data: Partial<Document>) => {
-    setIsCustomized(true);
+    setWorkspaceState(prev => {
+      let newDocs: Document[];
+      if (data.id) {
+        newDocs = prev.documents.map(d => d.id === data.id ? { ...d, ...data } as Document : d);
+      } else {
+        const newDoc: Document = {
+          id: 'pdoc-' + Date.now(),
+          title: data.title || 'Nuevo Documento',
+          format: data.format || 'image',
+          docType: data.docType || 'IMAGE',
+          typeLabel: data.typeLabel || 'Documento',
+          projectId: data.projectId || prev.projects[0]?.id || 'PRJ-01',
+          date: data.date || new Date().toISOString().split('T')[0],
+          updatedAt: data.date || new Date().toISOString().split('T')[0],
+          fileUrl: data.fileUrl || '#',
+          previewUrl: data.previewUrl,
+          description: data.description || 'Documento adjunto'
+        };
+        newDocs = [newDoc, ...prev.documents];
+      }
 
-    if (data.id) {
-      setDocuments(prev => prev.map(d => d.id === data.id ? { ...d, ...data } as Document : d));
-    } else {
-      const newDoc: Document = {
-        id: 'pdoc-' + Date.now(),
-        title: data.title || 'Nuevo Documento',
-        format: data.format || 'image',
-        docType: data.docType || 'IMAGE',
-        typeLabel: data.typeLabel || 'Documento',
-        projectId: data.projectId || projects[0]?.id || 'PRJ-01',
-        date: data.date || new Date().toISOString().split('T')[0],
-        updatedAt: data.date || new Date().toISOString().split('T')[0],
-        fileUrl: data.fileUrl || '#',
-        previewUrl: data.previewUrl,
-        description: data.description || 'Documento adjunto'
+      return {
+        ...prev,
+        isCustomized: true,
+        documents: newDocs
       };
-      setDocuments(prev => [newDoc, ...prev]);
-    }
+    });
 
     setCurrentView('docs');
     triggerToast('✅ Documento guardado exitosamente.');
@@ -573,15 +665,21 @@ export default function Home() {
 
   const handleDeleteDocument = (id: string) => {
     if (confirm('¿Eliminar este documento?')) {
-      setIsCustomized(true);
-      setDocuments(prev => prev.filter(d => d.id !== id));
+      setWorkspaceState(prev => ({
+        ...prev,
+        isCustomized: true,
+        documents: prev.documents.filter(d => d.id !== id)
+      }));
       triggerToast('🗑️ Documento eliminado.');
     }
   };
 
   const handleSaveWikiDoc = (updatedWikiDoc: WikiDoc) => {
-    setIsCustomized(true);
-    setWikiDocs(prev => prev.map(w => w.id === updatedWikiDoc.id ? updatedWikiDoc : w));
+    setWorkspaceState(prev => ({
+      ...prev,
+      isCustomized: true,
+      wikiDocs: prev.wikiDocs.map(w => w.id === updatedWikiDoc.id ? updatedWikiDoc : w)
+    }));
     triggerToast('✅ Nota guardada exitosamente.');
   };
 
@@ -598,7 +696,7 @@ export default function Home() {
         setCurrentView={setCurrentView}
         activeProjectFilter={activeProjectFilter}
         setActiveProjectFilter={setActiveProjectFilter}
-        projects={projects}
+        projects={workspaceState.projects}
         onAddProject={handleOpenNewProjectModal}
         onEditProject={handleOpenEditProjectModal}
         onDeleteProject={handleDeleteProject}
@@ -607,7 +705,7 @@ export default function Home() {
       {/* Main View Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Navbar
-          projects={projects}
+          projects={workspaceState.projects}
           activeProjectFilter={activeProjectFilter}
           setActiveProjectFilter={setActiveProjectFilter}
           openSpotlight={() => setIsSpotlightOpen(true)}
@@ -621,17 +719,17 @@ export default function Home() {
         <main className="flex-1 p-4 md:p-7 overflow-y-auto">
           {currentView === 'dashboard' && (
             <OverviewDashboard
-              projects={projects}
-              expenses={expenses}
-              tasks={tasks}
+              projects={workspaceState.projects}
+              expenses={workspaceState.expenses}
+              tasks={workspaceState.tasks}
               activeProjectFilter={activeProjectFilter}
             />
           )}
 
           {currentView === 'expenses' && (
             <ExpenseTracker
-              expenses={expenses}
-              projects={projects}
+              expenses={workspaceState.expenses}
+              projects={workspaceState.projects}
               activeProjectFilter={activeProjectFilter}
               onAddExpense={() => handleOpenNewActionModal('expense')}
               onEditExpense={(exp) => {
@@ -645,8 +743,8 @@ export default function Home() {
 
           {currentView === 'tasks' && (
             <TaskManager
-              tasks={tasks}
-              projects={projects}
+              tasks={workspaceState.tasks}
+              projects={workspaceState.projects}
               activeProjectFilter={activeProjectFilter}
               onAddTask={() => handleOpenNewActionModal('task')}
               onEditTask={(task) => {
@@ -661,8 +759,8 @@ export default function Home() {
 
           {currentView === 'docs' && (
             <ProjectDocuments
-              documents={documents}
-              projects={projects}
+              documents={workspaceState.documents}
+              projects={workspaceState.projects}
               activeProjectFilter={activeProjectFilter}
               onAddDocument={() => handleOpenNewActionModal('doc')}
               onEditDocument={(doc) => {
@@ -677,7 +775,7 @@ export default function Home() {
 
           {currentView === 'wiki' && (
             <KnowledgeBase
-              wikiDocs={wikiDocs}
+              wikiDocs={workspaceState.wikiDocs}
               activeProjectFilter={activeProjectFilter}
               onSaveDoc={handleSaveWikiDoc}
             />
@@ -737,9 +835,9 @@ export default function Home() {
       <SpotlightModal
         isOpen={isSpotlightOpen}
         onClose={() => setIsSpotlightOpen(false)}
-        tasks={tasks}
-        expenses={expenses}
-        documents={documents}
+        tasks={workspaceState.tasks}
+        expenses={workspaceState.expenses}
+        documents={workspaceState.documents}
         onSelectResult={(view) => setCurrentView(view)}
       />
 
@@ -748,17 +846,17 @@ export default function Home() {
         onClose={() => setIsProjectModalOpen(false)}
         onSave={handleSaveProject}
         projectToEdit={projectToEdit}
-        projectCategories={projectCategories}
+        projectCategories={workspaceState.projectCategories}
       />
 
       <ActionModal
         isOpen={isActionModalOpen}
         onClose={() => setIsActionModalOpen(false)}
-        projects={projects}
+        projects={workspaceState.projects}
         onSaveExpense={handleSaveExpense}
         onSaveTask={handleSaveTask}
         onSaveDocument={handleSaveDocument}
-        categories={categories}
+        categories={workspaceState.categories}
         editType={editType}
         editItem={editItem}
       />
@@ -768,7 +866,7 @@ export default function Home() {
           isOpen={isLightboxOpen}
           onClose={() => setIsLightboxOpen(false)}
           document={lightboxDoc}
-          projects={projects}
+          projects={workspaceState.projects}
         />
       )}
     </div>
