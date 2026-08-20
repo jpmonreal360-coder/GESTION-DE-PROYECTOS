@@ -1,0 +1,1524 @@
+// Application State & Data Store
+const state = {
+  theme: localStorage.getItem('aura-theme') || 'light',
+  currentView: 'dashboard', // 'dashboard' | 'expenses' | 'tasks' | 'docs' | 'wiki'
+  activeProjectFilter: 'all',
+  taskViewMode: 'kanban', // 'kanban' | 'table'
+  financeFilter: 'all', // 'all' | 'INCOME' | 'EXPENSE'
+  docFormatFilter: 'all', // 'all' | 'pdf' | 'image' | 'sheets'
+  activeWikiDocId: 'doc-1',
+  isProjectDropdownOpen: false,
+  isMobileSidebarOpen: false,
+
+  projects: [
+    { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 25000, spent: 18450, color: 'var(--accent-blue)', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
+    { id: 'PRJ-02', name: 'SaaS Dashboard v2', code: 'SAAS-02', budget: 18500, spent: 19200, color: 'var(--accent-purple)', category: 'Web App', startDate: '2026-07-15', endDate: '2026-10-15' },
+    { id: 'PRJ-03', name: 'Brand Identity 2026', code: 'BRAND-03', budget: 12000, spent: 7800, color: 'var(--accent-orange)', category: 'Design', startDate: '2026-08-05', endDate: '2026-09-30' }
+  ],
+
+  expenses: [
+    { id: 'exp-101', type: 'INCOME', concept: 'Anticipo 50% Proyecto Rediseño iOS', amount: 12500, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-08-01', status: 'PAID' },
+    { id: 'exp-102', type: 'INCOME', concept: 'Cobro Hito 1 SaaS Dashboard', amount: 9250, category: 'Facturación / Cobro', projectId: 'PRJ-02', date: '2026-08-05', status: 'PAID' },
+    { id: 'exp-103', type: 'INCOME', concept: 'Pago Total Brand Identity 2026', amount: 12000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-08-08', status: 'PAID' },
+    { id: 'exp-1', type: 'EXPENSE', concept: 'Suscripción Figma Enterprise', amount: 1440, category: 'Software', projectId: 'PRJ-01', date: '2026-08-15', status: 'PAID' },
+    { id: 'exp-2', type: 'EXPENSE', concept: 'Servidores AWS & Cloudflare CDN', amount: 3200, category: 'Infraestructura', projectId: 'PRJ-02', date: '2026-08-14', status: 'PAID' },
+    { id: 'exp-3', type: 'EXPENSE', concept: 'Tipografía Personalizada Font Lab', amount: 1800, category: 'Diseño', projectId: 'PRJ-03', date: '2026-08-10', status: 'PAID' },
+    { id: 'exp-4', type: 'EXPENSE', concept: 'Auditoría de Seguridad iOS', amount: 5000, category: 'Desarrollo', projectId: 'PRJ-01', date: '2026-08-08', status: 'PENDING' },
+    { id: 'exp-5', type: 'EXPENSE', concept: 'Campaña Launch Product Hunt', amount: 2500, category: 'Marketing', projectId: 'PRJ-02', date: '2026-08-02', status: 'PAID' }
+  ],
+
+  projectDocs: [
+    {
+      id: 'pdoc-1',
+      title: 'Contrato Marco de Desarrollo & NDA v1.2',
+      format: 'pdf',
+      typeLabel: 'Contrato PDF',
+      projectId: 'PRJ-01',
+      date: '2026-08-01',
+      fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      description: 'Documento legal en formato PDF firmado con acuerdo de confidencialidad.'
+    },
+    {
+      id: 'pdoc-2',
+      title: 'Foto / Captura de Maqueta UI Aprobada',
+      format: 'image',
+      typeLabel: 'Foto / Imagen',
+      projectId: 'PRJ-01',
+      date: '2026-08-12',
+      previewUrl: 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=800&auto=format&fit=crop&q=80',
+      fileUrl: 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=1600&auto=format&fit=crop&q=80',
+      description: 'Fotografía / Render en alta resolución del diseño UI/UX validado por el cliente.'
+    },
+    {
+      id: 'pdoc-3',
+      title: 'Hoja de Control Financiero & Proyecciones 2026',
+      format: 'sheets',
+      typeLabel: 'Google Sheets',
+      projectId: 'PRJ-02',
+      date: '2026-08-14',
+      fileUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMd1KtCwb45SZgLUnsM60uuDtf23693/edit',
+      description: 'Hoja de cálculo en vivo de Google Sheets con modelo financiero del SaaS.'
+    }
+  ],
+
+  tasks: [
+    { id: 'tsk-1', title: 'Diseñar componentes esmerilados (Glassmorphism)', status: 'IN_PROGRESS', priority: 'HIGH', projectId: 'PRJ-01', assignee: 'Edmundo A.', dueDate: '2026-08-25', tags: ['UI/UX', 'Apple'] },
+    { id: 'tsk-2', title: 'Implementar atajos de teclado Cmd+K para Spotlight', status: 'COMPLETED', priority: 'MEDIUM', projectId: 'PRJ-02', assignee: 'Sofia R.', dueDate: '2026-08-18', tags: ['Frontend'] },
+    { id: 'tsk-3', title: 'Configurar esquema relacional Prisma con SQLite', status: 'COMPLETED', priority: 'HIGH', projectId: 'PRJ-02', assignee: 'Carlos M.', dueDate: '2026-08-16', tags: ['Backend', 'DB'] },
+    { id: 'tsk-4', title: 'Crear sistema de alertas de presupuesto >80%', status: 'IN_REVIEW', priority: 'URGENT', projectId: 'PRJ-01', assignee: 'Edmundo A.', dueDate: '2026-08-22', tags: ['Finance'] },
+    { id: 'tsk-5', title: 'Exportación de paleta de colores a tokens CSS', status: 'TODO', priority: 'LOW', projectId: 'PRJ-03', assignee: 'Lucia P.', dueDate: '2026-08-30', tags: ['Branding'] }
+  ],
+
+  wikiDocs: [
+    {
+      id: 'doc-1',
+      title: 'Guía de Estilo UI/UX - Apple Human Interface Guidelines',
+      projectId: 'PRJ-01',
+      updatedAt: '2026-08-19',
+      content: `### Principios de Diseño\n1. Translucidez y Vidrio Esmerilado\n2. Jerarquía Tipográfica`
+    },
+    {
+      id: 'doc-2',
+      title: 'Arquitectura del Sistema & API Routes',
+      projectId: 'PRJ-02',
+      updatedAt: '2026-08-17',
+      content: `### Especificación Backend\n- Prisma Server Actions integradas con Next.js 14+ App Router.`
+    }
+  ]
+};
+
+// Variable temporal para guardar archivo o captura pegada
+let uploadedFileDataUrl = null;
+
+// Initialize App
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+  setupEventListeners();
+  setupMobileDrawer();
+  setupProjectDropdownMenu();
+  setupClipboardPasteAndDrop();
+  setupLightboxEvents();
+  populateFormProjectsDropdown();
+  renderApp();
+});
+
+// Helper for today's ISO date string (YYYY-MM-DD)
+function getTodayIsoDate() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ----------------------------------------------------
+// LIGHTBOX MODAL FOR HIGH-RES PHOTO PREVIEWING
+// ----------------------------------------------------
+function setupLightboxEvents() {
+  const modal = document.getElementById('image-lightbox-modal');
+  const closeBtn = document.getElementById('close-lightbox-btn');
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeImageLightbox);
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target.id === 'image-lightbox-modal') {
+        closeImageLightbox();
+      }
+    });
+  }
+}
+
+function openImageLightbox(docId) {
+  const doc = state.projectDocs.find(d => d.id === docId);
+  if (!doc) return;
+
+  const modal = document.getElementById('image-lightbox-modal');
+  const img = document.getElementById('lightbox-img');
+  const title = document.getElementById('lightbox-title');
+  const subtitle = document.getElementById('lightbox-subtitle');
+  const downloadBtn = document.getElementById('lightbox-download-btn');
+
+  const prj = state.projects.find(p => p.id === doc.projectId);
+  const imageUrl = doc.previewUrl || doc.fileUrl;
+
+  if (img) img.src = imageUrl;
+  if (title) title.innerText = doc.title;
+  if (subtitle) subtitle.innerText = `${prj ? prj.name : 'Proyecto'} • 📅 ${doc.date}`;
+  if (downloadBtn) {
+    downloadBtn.href = imageUrl;
+    downloadBtn.download = `${doc.title.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+  }
+
+  modal.classList.add('active');
+}
+
+function closeImageLightbox() {
+  const modal = document.getElementById('image-lightbox-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+// ----------------------------------------------------
+// CLIPBOARD PASTE & DRAG-AND-DROP HANDLERS (PHOTOS/SCREENSHOTS)
+// ----------------------------------------------------
+function setupClipboardPasteAndDrop() {
+  window.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    let imageItem = null;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        imageItem = items[i];
+        break;
+      }
+    }
+
+    if (imageItem) {
+      const blob = imageItem.getAsFile();
+      processImageBlob(blob, 'Captura Pegada');
+    }
+  });
+
+  const dropzone = document.getElementById('doc-paste-dropzone');
+  const fileInput = document.getElementById('form-doc-file');
+
+  if (dropzone) {
+    dropzone.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-active');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('drag-active');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-active');
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          processImageBlob(file, file.name);
+        } else {
+          fileInput.files = files;
+          fileInput.dispatchEvent(new Event('change'));
+        }
+      }
+    });
+  }
+}
+
+function processImageBlob(blob, nameHint = 'Captura de Pantalla') {
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    uploadedFileDataUrl = event.target.result;
+    
+    openActionModal('doc');
+
+    document.getElementById('form-doc-format').value = 'image';
+    document.getElementById('form-doc-format').dispatchEvent(new Event('change'));
+
+    const titleInput = document.getElementById('form-title');
+    if (!titleInput.value) {
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      titleInput.value = `${nameHint} (${timeStr})`;
+    }
+
+    showPastedImagePreview(uploadedFileDataUrl);
+  };
+  reader.readAsDataURL(blob);
+}
+
+function showPastedImagePreview(dataUrl) {
+  const container = document.getElementById('pasted-preview-container');
+  const img = document.getElementById('pasted-preview-img');
+  const label = document.getElementById('paste-dropzone-title');
+
+  if (container && img) {
+    img.src = dataUrl;
+    container.style.display = 'flex';
+    if (label) label.innerText = '✅ Foto / Screenshot Pegado Correctamente!';
+  }
+}
+
+function hidePastedImagePreview() {
+  const container = document.getElementById('pasted-preview-container');
+  const label = document.getElementById('paste-dropzone-title');
+  if (container) container.style.display = 'none';
+  if (label) label.innerText = '📋 Presiona Ctrl+V para pegar una foto o screenshot';
+}
+
+// Mobile Drawer Setup
+function setupMobileDrawer() {
+  const toggleBtn = document.getElementById('mobile-menu-btn');
+  const sidebar = document.getElementById('app-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (!toggleBtn || !sidebar || !overlay) return;
+
+  const toggleMobileSidebar = () => {
+    state.isMobileSidebarOpen = !state.isMobileSidebarOpen;
+    if (state.isMobileSidebarOpen) {
+      sidebar.classList.add('mobile-open');
+      overlay.classList.add('active');
+    } else {
+      sidebar.classList.remove('mobile-open');
+      overlay.classList.remove('active');
+    }
+  };
+
+  toggleBtn.addEventListener('click', toggleMobileSidebar);
+  overlay.addEventListener('click', () => {
+    state.isMobileSidebarOpen = false;
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+  });
+}
+
+function closeMobileDrawerIfOpen() {
+  if (state.isMobileSidebarOpen) {
+    state.isMobileSidebarOpen = false;
+    const sidebar = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    if (overlay) overlay.classList.remove('active');
+  }
+}
+
+// Theme Management
+function initTheme() {
+  document.documentElement.setAttribute('data-theme', state.theme);
+  updateThemeIcon();
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('aura-theme', state.theme);
+  document.documentElement.setAttribute('data-theme', state.theme);
+  updateThemeIcon();
+}
+
+function updateThemeIcon() {
+  const icon = document.getElementById('theme-icon');
+  if (icon) {
+    icon.setAttribute('data-lucide', state.theme === 'light' ? 'moon' : 'sun');
+    lucide.createIcons();
+  }
+}
+
+// Project Switcher Dropdown Menu Setup
+function setupProjectDropdownMenu() {
+  const switcherBtn = document.getElementById('workspace-switcher');
+  const dropdownMenu = document.getElementById('project-dropdown-menu');
+
+  if (!switcherBtn || !dropdownMenu) return;
+
+  switcherBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.isProjectDropdownOpen = !state.isProjectDropdownOpen;
+    if (state.isProjectDropdownOpen) {
+      renderProjectDropdownItems();
+      dropdownMenu.classList.add('active');
+    } else {
+      dropdownMenu.classList.remove('active');
+    }
+  });
+
+  window.addEventListener('click', (e) => {
+    if (!switcherBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+      state.isProjectDropdownOpen = false;
+      dropdownMenu.classList.remove('active');
+    }
+  });
+}
+
+function renderProjectDropdownItems() {
+  const container = document.getElementById('dropdown-project-items');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const allItem = document.createElement('div');
+  allItem.className = `dropdown-item ${state.activeProjectFilter === 'all' ? 'active' : ''}`;
+  allItem.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <i data-lucide="layers" style="width: 15px; height: 15px; color: var(--accent-blue);"></i>
+      <span>Todos los Proyectos</span>
+    </div>
+    <span class="item-badge" style="font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--bg-input);">${state.projects.length}</span>
+  `;
+  allItem.addEventListener('click', () => {
+    selectProjectFromDropdown('all');
+  });
+  container.appendChild(allItem);
+
+  state.projects.forEach(prj => {
+    const item = document.createElement('div');
+    item.className = `dropdown-item ${state.activeProjectFilter === prj.id ? 'active' : ''}`;
+    item.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1;" onclick="selectProjectFromDropdown('${prj.id}')">
+        <i data-lucide="folder" style="width: 15px; height: 15px; color: ${prj.color};"></i>
+        <span style="font-weight: 600;">${prj.name}</span>
+      </div>
+      <div style="display: flex; items-center; gap: 4px;">
+        <button class="action-btn-sm" title="Editar Proyecto" onclick="event.stopPropagation(); openProjectModal('${prj.id}')">
+          <i data-lucide="edit-2" style="width: 11px; height: 11px;"></i>
+        </button>
+        <button class="action-btn-sm action-btn-danger" title="Eliminar Proyecto" onclick="event.stopPropagation(); deleteProject('${prj.id}')">
+          <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
+        </button>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+
+  lucide.createIcons();
+}
+
+function selectProjectFromDropdown(projectId) {
+  state.activeProjectFilter = projectId;
+  state.isProjectDropdownOpen = false;
+  
+  const dropdownMenu = document.getElementById('project-dropdown-menu');
+  if (dropdownMenu) dropdownMenu.classList.remove('active');
+
+  closeMobileDrawerIfOpen();
+  updateProjectSwitcherLabel();
+  renderApp();
+}
+
+// ----------------------------------------------------
+// PROJECT MANAGEMENT
+// ----------------------------------------------------
+function openProjectModal(projectId = null) {
+  const modal = document.getElementById('project-modal');
+  const title = document.getElementById('project-modal-title');
+  const editingIdInput = document.getElementById('form-prj-editing-id');
+  const nameInput = document.getElementById('form-prj-name');
+  const codeInput = document.getElementById('form-prj-code');
+  const budgetInput = document.getElementById('form-prj-budget');
+  const categoryInput = document.getElementById('form-prj-category');
+  const startDateInput = document.getElementById('form-prj-startdate');
+  const endDateInput = document.getElementById('form-prj-enddate');
+
+  if (projectId) {
+    const prj = state.projects.find(p => p.id === projectId);
+    if (prj) {
+      title.innerText = 'Editar Proyecto';
+      editingIdInput.value = prj.id;
+      nameInput.value = prj.name;
+      codeInput.value = prj.code;
+      budgetInput.value = prj.budget;
+      categoryInput.value = prj.category || 'Mobile App';
+      startDateInput.value = prj.startDate || getTodayIsoDate();
+      endDateInput.value = prj.endDate || getTodayIsoDate();
+    }
+  } else {
+    title.innerText = 'Nuevo Proyecto';
+    editingIdInput.value = '';
+    nameInput.value = '';
+    codeInput.value = 'PRJ-0' + (state.projects.length + 1);
+    budgetInput.value = '20000';
+    categoryInput.value = 'Mobile App';
+    startDateInput.value = getTodayIsoDate();
+    endDateInput.value = getTodayIsoDate();
+  }
+
+  modal.classList.add('active');
+}
+
+function closeProjectModal() {
+  document.getElementById('project-modal').classList.remove('active');
+}
+
+function deleteProject(projectId) {
+  const prj = state.projects.find(p => p.id === projectId);
+  if (!prj) return;
+
+  if (confirm(`¿Estás seguro de que deseas eliminar el proyecto "${prj.name}"? Se borrarán sus transacciones, tareas y documentos asociados.`)) {
+    state.projects = state.projects.filter(p => p.id !== projectId);
+    state.expenses = state.expenses.filter(e => e.projectId !== projectId);
+    state.tasks = state.tasks.filter(t => t.projectId !== projectId);
+    state.projectDocs = state.projectDocs.filter(d => d.projectId !== projectId);
+
+    if (state.activeProjectFilter === projectId) {
+      state.activeProjectFilter = 'all';
+    }
+
+    populateFormProjectsDropdown();
+    updateProjectSwitcherLabel();
+    renderApp();
+  }
+}
+
+function handleProjectFormSubmit(e) {
+  e.preventDefault();
+  const editingId = document.getElementById('form-prj-editing-id').value;
+  const name = document.getElementById('form-prj-name').value;
+  const code = document.getElementById('form-prj-code').value;
+  const budget = parseFloat(document.getElementById('form-prj-budget').value) || 0;
+  const category = document.getElementById('form-prj-category').value;
+  const startDate = document.getElementById('form-prj-startdate').value || getTodayIsoDate();
+  const endDate = document.getElementById('form-prj-enddate').value || getTodayIsoDate();
+
+  if (editingId) {
+    const prj = state.projects.find(p => p.id === editingId);
+    if (prj) {
+      prj.name = name;
+      prj.code = code;
+      prj.budget = budget;
+      prj.category = category;
+      prj.startDate = startDate;
+      prj.endDate = endDate;
+    }
+  } else {
+    const newPrj = {
+      id: 'PRJ-' + Date.now(),
+      name: name,
+      code: code,
+      budget: budget,
+      spent: 0,
+      color: 'var(--accent-blue)',
+      category: category,
+      startDate: startDate,
+      endDate: endDate
+    };
+    state.projects.push(newPrj);
+    state.activeProjectFilter = newPrj.id;
+  }
+
+  closeProjectModal();
+  populateFormProjectsDropdown();
+  updateProjectSwitcherLabel();
+  renderApp();
+}
+
+function populateFormProjectsDropdown() {
+  const select = document.getElementById('form-project');
+  if (!select) return;
+
+  select.innerHTML = '';
+  state.projects.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.innerText = `${p.name} (${p.code})`;
+    select.appendChild(opt);
+  });
+
+  renderSidebarProjectsList();
+}
+
+function renderSidebarProjectsList() {
+  const container = document.getElementById('sidebar-projects-list');
+  if (!container) return;
+
+  container.innerHTML = `
+    <li>
+      <a class="nav-item ${state.activeProjectFilter === 'all' ? 'active' : ''}" data-project-filter="all" onclick="selectProjectFromDropdown('all')">
+        <i data-lucide="layers" style="color: var(--accent-blue);"></i>
+        <span>Todos los Proyectos</span>
+      </a>
+    </li>
+    ${state.projects.map(p => `
+      <li>
+        <a class="nav-item ${state.activeProjectFilter === p.id ? 'active' : ''}" data-project-filter="${p.id}" onclick="selectProjectFromDropdown('${p.id}')">
+          <i data-lucide="folder" style="color: ${p.color};"></i>
+          <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.name}</span>
+          <button class="action-btn-sm" style="width: 20px; height: 20px; border: none;" title="Editar" onclick="event.stopPropagation(); openProjectModal('${p.id}')">
+            <i data-lucide="edit-2" style="width: 10px; height: 10px;"></i>
+          </button>
+        </a>
+      </li>
+    `).join('')}
+  `;
+
+  lucide.createIcons();
+}
+
+// Event Listeners Setup
+function setupEventListeners() {
+  document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
+
+  document.getElementById('sidebar-add-project-btn').addEventListener('click', () => openProjectModal());
+  document.getElementById('dropdown-add-project-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openProjectModal();
+  });
+  document.getElementById('close-project-modal').addEventListener('click', closeProjectModal);
+  document.getElementById('project-form').addEventListener('submit', handleProjectFormSubmit);
+
+  document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.nav-item[data-view]').forEach(nav => nav.classList.remove('active'));
+      item.classList.add('active');
+      state.currentView = item.getAttribute('data-view');
+      closeMobileDrawerIfOpen();
+      renderApp();
+    });
+  });
+
+  document.getElementById('spotlight-btn').addEventListener('click', openSpotlight);
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      openSpotlight();
+    }
+    if (e.key === 'Escape') {
+      closeSpotlight();
+      closeActionModal();
+      closeProjectModal();
+      closeImageLightbox();
+      closeMobileDrawerIfOpen();
+    }
+  });
+
+  document.getElementById('spotlight-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'spotlight-modal') closeSpotlight();
+  });
+
+  document.getElementById('spotlight-search-input').addEventListener('input', handleSpotlightSearch);
+
+  document.getElementById('quick-add-btn').addEventListener('click', () => openActionModal());
+  document.getElementById('close-action-modal').addEventListener('click', closeActionModal);
+  document.getElementById('action-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'action-modal') closeActionModal();
+  });
+
+  document.getElementById('form-type').addEventListener('change', (e) => {
+    const val = e.target.value;
+    const financeFields = document.getElementById('form-finance-fields');
+    const docFields = document.getElementById('form-doc-fields');
+    const taskFields = document.getElementById('form-task-fields');
+    
+    financeFields.style.display = (val === 'income' || val === 'expense') ? 'block' : 'none';
+    docFields.style.display = (val === 'doc') ? 'block' : 'none';
+    taskFields.style.display = (val === 'task') ? 'block' : 'none';
+  });
+
+  document.getElementById('form-doc-format').addEventListener('change', (e) => {
+    const fmt = e.target.value;
+    const dropzone = document.getElementById('doc-paste-dropzone');
+    const urlWrapper = document.getElementById('doc-url-wrapper');
+
+    if (fmt === 'sheets' || fmt === 'link') {
+      dropzone.style.display = 'none';
+      urlWrapper.style.display = 'block';
+    } else {
+      dropzone.style.display = 'flex';
+      urlWrapper.style.display = 'none';
+    }
+  });
+
+  document.getElementById('form-doc-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        uploadedFileDataUrl = event.target.result;
+        if (file.type.startsWith('image/')) {
+          showPastedImagePreview(uploadedFileDataUrl);
+        } else {
+          document.getElementById('paste-dropzone-title').innerText = `📄 PDF seleccionado: ${file.name}`;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  document.getElementById('action-form').addEventListener('submit', handleFormSubmit);
+}
+
+// Spotlight Functions
+function openSpotlight() {
+  const modal = document.getElementById('spotlight-modal');
+  modal.classList.add('active');
+  const input = document.getElementById('spotlight-search-input');
+  input.value = '';
+  input.focus();
+  renderSpotlightResults('');
+}
+
+function closeSpotlight() {
+  document.getElementById('spotlight-modal').classList.remove('active');
+}
+
+function handleSpotlightSearch(e) {
+  renderSpotlightResults(e.target.value.toLowerCase().trim());
+}
+
+function renderSpotlightResults(query) {
+  const container = document.getElementById('spotlight-results-container');
+  container.innerHTML = '';
+
+  const results = [];
+
+  state.tasks.forEach(t => {
+    if (!query || t.title.toLowerCase().includes(query)) {
+      results.push({ type: `Tarea (${t.assignee})`, title: t.title, desc: `${t.priority} • 📅 ${t.dueDate}`, icon: 'check-square', action: () => { state.currentView = 'tasks'; renderApp(); closeSpotlight(); } });
+    }
+  });
+
+  state.expenses.forEach(e => {
+    if (!query || e.concept.toLowerCase().includes(query)) {
+      results.push({ type: e.type === 'INCOME' ? 'Entrada (Ingreso)' : 'Salida (Gasto)', title: e.concept, desc: `$${e.amount.toLocaleString()} USD • 📅 ${e.date}`, icon: 'dollar-sign', action: () => { state.currentView = 'expenses'; renderApp(); closeSpotlight(); } });
+    }
+  });
+
+  state.projectDocs.forEach(d => {
+    if (!query || d.title.toLowerCase().includes(query)) {
+      results.push({ type: 'Documento / Foto / Sheets', title: d.title, desc: `${d.typeLabel} • 📅 ${d.date}`, icon: 'file-text', action: () => { state.currentView = 'docs'; renderApp(); closeSpotlight(); } });
+    }
+  });
+
+  if (results.length === 0) {
+    container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13.5px;">No se encontraron resultados para "${query}"</div>`;
+    return;
+  }
+
+  results.slice(0, 8).forEach(res => {
+    const div = document.createElement('div');
+    div.className = 'spotlight-item';
+    div.innerHTML = `
+      <i data-lucide="${res.icon}" style="width: 18px; height: 18px; color: var(--accent-blue);"></i>
+      <div>
+        <div style="font-weight: 500;">${res.title}</div>
+        <div style="font-size: 11.5px; color: var(--text-muted);">${res.type}</div>
+      </div>
+      <span class="item-desc">${res.desc}</span>
+    `;
+    div.addEventListener('click', res.action);
+    container.appendChild(div);
+  });
+
+  lucide.createIcons();
+}
+
+// ----------------------------------------------------
+// GENERIC ACTION MODAL: EDIT / CREATE WITH CLIPBOARD PASTE
+// ----------------------------------------------------
+function openActionModal(editType = null, editId = null) {
+  const modal = document.getElementById('action-modal');
+  const title = document.getElementById('modal-form-title');
+  const editingIdInput = document.getElementById('form-editing-id');
+  const typeSelect = document.getElementById('form-type');
+  const titleInput = document.getElementById('form-title');
+  const amountInput = document.getElementById('form-amount');
+  const prjSelect = document.getElementById('form-project');
+  
+  const financeDateInput = document.getElementById('form-finance-date');
+  const taskDueDateInput = document.getElementById('form-task-duedate');
+  const docDateInput = document.getElementById('form-doc-date');
+
+  editingIdInput.value = editId || '';
+  hidePastedImagePreview();
+
+  if (editType === 'expense' && editId) {
+    const item = state.expenses.find(e => e.id === editId);
+    if (item) {
+      title.innerText = 'Editar Transacción Financiera';
+      typeSelect.value = item.type === 'INCOME' ? 'income' : 'expense';
+      titleInput.value = item.concept;
+      amountInput.value = item.amount;
+      prjSelect.value = item.projectId;
+      document.getElementById('form-category').value = item.category;
+      financeDateInput.value = item.date || getTodayIsoDate();
+    }
+  } else if (editType === 'task' && editId) {
+    const task = state.tasks.find(t => t.id === editId);
+    if (task) {
+      title.innerText = 'Editar Tarea & Fecha Límite';
+      typeSelect.value = 'task';
+      titleInput.value = task.title;
+      prjSelect.value = task.projectId;
+      document.getElementById('form-task-assignee').value = task.assignee;
+      document.getElementById('form-task-priority').value = task.priority;
+      taskDueDateInput.value = task.dueDate || getTodayIsoDate();
+    }
+  } else if (editType === 'doc' && editId) {
+    const doc = state.projectDocs.find(d => d.id === editId);
+    if (doc) {
+      title.innerText = 'Editar Documento & Fecha';
+      typeSelect.value = 'doc';
+      titleInput.value = doc.title;
+      prjSelect.value = doc.projectId;
+      document.getElementById('form-doc-format').value = doc.format;
+      docDateInput.value = doc.date || getTodayIsoDate();
+      if (doc.format === 'image' && (doc.previewUrl || doc.fileUrl)) {
+        uploadedFileDataUrl = doc.previewUrl || doc.fileUrl;
+        showPastedImagePreview(uploadedFileDataUrl);
+      }
+    }
+  } else {
+    title.innerText = 'Nuevo Registro';
+    typeSelect.value = 'doc';
+    titleInput.value = '';
+    amountInput.value = '';
+    financeDateInput.value = getTodayIsoDate();
+    taskDueDateInput.value = getTodayIsoDate();
+    docDateInput.value = getTodayIsoDate();
+  }
+
+  typeSelect.dispatchEvent(new Event('change'));
+  modal.classList.add('active');
+}
+
+function closeActionModal() {
+  document.getElementById('action-modal').classList.remove('active');
+  hidePastedImagePreview();
+}
+
+function handleFormSubmit(e) {
+  e.preventDefault();
+  const editingId = document.getElementById('form-editing-id').value;
+  const type = document.getElementById('form-type').value;
+  const title = document.getElementById('form-title').value;
+  const prjId = document.getElementById('form-project').value;
+
+  if (type === 'income' || type === 'expense') {
+    const amount = parseFloat(document.getElementById('form-amount').value) || 0;
+    const category = document.getElementById('form-category').value;
+    const transactionType = type === 'income' ? 'INCOME' : 'EXPENSE';
+    const date = document.getElementById('form-finance-date').value || getTodayIsoDate();
+
+    if (editingId) {
+      const exp = state.expenses.find(e => e.id === editingId);
+      if (exp) {
+        exp.type = transactionType;
+        exp.concept = title;
+        exp.amount = amount;
+        exp.category = category;
+        exp.projectId = prjId;
+        exp.date = date;
+      }
+    } else {
+      state.expenses.unshift({
+        id: 'exp-' + Date.now(),
+        type: transactionType,
+        concept: title,
+        amount: amount,
+        category: category,
+        projectId: prjId,
+        date: date,
+        status: 'PAID'
+      });
+    }
+
+  } else if (type === 'doc') {
+    const format = document.getElementById('form-doc-format').value;
+    const docDate = document.getElementById('form-doc-date').value || getTodayIsoDate();
+    let fileUrl = '#';
+    let previewUrl = null;
+    let typeLabel = 'Documento';
+
+    if (format === 'pdf') {
+      typeLabel = 'Documento PDF';
+      fileUrl = uploadedFileDataUrl || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+    } else if (format === 'image') {
+      typeLabel = 'Foto / Captura Pegada';
+      fileUrl = uploadedFileDataUrl || 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=1600&auto=format&fit=crop&q=80';
+      previewUrl = uploadedFileDataUrl || 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=800&auto=format&fit=crop&q=80';
+    } else if (format === 'sheets') {
+      typeLabel = 'Google Sheets';
+      fileUrl = document.getElementById('form-doc-sheets-url').value || 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMd1KtCwb45SZgLUnsM60uuDtf23693/edit';
+    } else {
+      typeLabel = 'Enlace Cloud';
+      fileUrl = document.getElementById('form-doc-sheets-url').value || 'https://drive.google.com';
+    }
+
+    if (editingId) {
+      const doc = state.projectDocs.find(d => d.id === editingId);
+      if (doc) {
+        doc.title = title;
+        doc.format = format;
+        doc.typeLabel = typeLabel;
+        doc.projectId = prjId;
+        doc.date = docDate;
+        if (previewUrl) doc.previewUrl = previewUrl;
+      }
+    } else {
+      state.projectDocs.unshift({
+        id: 'pdoc-' + Date.now(),
+        title: title,
+        format: format,
+        typeLabel: typeLabel,
+        projectId: prjId,
+        date: docDate,
+        fileUrl: fileUrl,
+        previewUrl: previewUrl,
+        description: `Documento o captura pegada (${typeLabel}).`
+      });
+    }
+
+    state.currentView = 'docs';
+    uploadedFileDataUrl = null;
+
+  } else if (type === 'task') {
+    const assignee = document.getElementById('form-task-assignee').value;
+    const priority = document.getElementById('form-task-priority').value;
+    const dueDate = document.getElementById('form-task-duedate').value || getTodayIsoDate();
+
+    if (editingId) {
+      const task = state.tasks.find(t => t.id === editingId);
+      if (task) {
+        task.title = title;
+        task.assignee = assignee;
+        task.priority = priority;
+        task.projectId = prjId;
+        task.dueDate = dueDate;
+      }
+    } else {
+      state.tasks.unshift({
+        id: 'tsk-' + Date.now(),
+        title: title,
+        status: 'TODO',
+        priority: priority,
+        projectId: prjId,
+        assignee: assignee,
+        dueDate: dueDate,
+        tags: ['Asignado']
+      });
+    }
+
+    state.currentView = 'tasks';
+  }
+
+  closeActionModal();
+  renderApp();
+}
+
+// DELETE HANDLERS
+function deleteTransaction(id) {
+  if (confirm('¿Eliminar esta transacción financiera?')) {
+    state.expenses = state.expenses.filter(e => e.id !== id);
+    renderApp();
+  }
+}
+
+function deleteTask(id) {
+  if (confirm('¿Eliminar esta tarea?')) {
+    state.tasks = state.tasks.filter(t => t.id !== id);
+    renderApp();
+  }
+}
+
+function deleteProjectDoc(id) {
+  if (confirm('¿Eliminar este documento de proyecto?')) {
+    state.projectDocs = state.projectDocs.filter(d => d.id !== id);
+    renderApp();
+  }
+}
+
+function updateProjectSwitcherLabel() {
+  const label = document.getElementById('current-project-label');
+  if (!label) return;
+
+  if (state.activeProjectFilter === 'all') {
+    label.innerText = `Todos los Proyectos (${state.projects.length})`;
+  } else {
+    const prj = state.projects.find(p => p.id === state.activeProjectFilter);
+    label.innerText = prj ? prj.name : 'Proyecto';
+  }
+}
+
+// Master Render Router
+function renderApp() {
+  const viewport = document.getElementById('app-viewport');
+  viewport.innerHTML = '';
+
+  switch (state.currentView) {
+    case 'dashboard':
+      renderDashboardView(viewport);
+      break;
+    case 'expenses':
+      renderExpensesView(viewport);
+      break;
+    case 'tasks':
+      renderTasksView(viewport);
+      break;
+    case 'docs':
+      renderProjectDocsView(viewport);
+      break;
+    case 'wiki':
+      renderWikiView(viewport);
+      break;
+  }
+
+  lucide.createIcons();
+}
+
+function getFilteredProjects() {
+  if (state.activeProjectFilter === 'all') return state.projects;
+  return state.projects.filter(p => p.id === state.activeProjectFilter);
+}
+
+// 1. DASHBOARD VIEW RENDERER
+function renderDashboardView(container) {
+  const filteredPrjs = getFilteredProjects();
+
+  const filteredTransactions = state.expenses.filter(e =>
+    state.activeProjectFilter === 'all' || e.projectId === state.activeProjectFilter
+  );
+
+  const totalIncome = filteredTransactions
+    .filter(e => e.type === 'INCOME')
+    .reduce((acc, e) => acc + e.amount, 0);
+
+  const totalExpenses = filteredTransactions
+    .filter(e => e.type === 'EXPENSE')
+    .reduce((acc, e) => acc + e.amount, 0);
+
+  const netBalance = totalIncome - totalExpenses;
+
+  const filteredTasks = state.tasks.filter(t =>
+    state.activeProjectFilter === 'all' || t.projectId === state.activeProjectFilter
+  );
+  const pendingTasks = filteredTasks.filter(t => t.status !== 'COMPLETED').length;
+
+  const isNetPositive = netBalance >= 0;
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Dashboard General</h1>
+        <p class="page-subtitle">Resumen ejecutivo y Balance Neto (Entradas − Gastos)</p>
+      </div>
+      <span class="badge ${isNetPositive ? 'badge-green' : 'badge-red'}">
+        ${isNetPositive ? '🟢 Balance Positivo' : '🔴 Déficit Financiero'}
+      </span>
+    </div>
+
+    <!-- Cards Grid -->
+    <div class="grid-4">
+      <div class="card glass apple-glass-hover">
+        <div class="card-title-sm">Total Entradas (Ingresos)</div>
+        <div class="card-value" style="color: var(--accent-green);">+$${totalIncome.toLocaleString()} <span style="font-size: 14px; font-weight: normal; color: var(--text-muted);">USD</span></div>
+        <div class="card-subtext">Cobros y facturación acumulada</div>
+      </div>
+
+      <div class="card glass apple-glass-hover">
+        <div class="card-title-sm">Total Salidas (Gastos)</div>
+        <div class="card-value" style="color: var(--accent-red);">-$${totalExpenses.toLocaleString()} <span style="font-size: 14px; font-weight: normal; color: var(--text-muted);">USD</span></div>
+        <div class="card-subtext">Operaciones, licencias y desarrollo</div>
+      </div>
+
+      <div class="card glass apple-glass-hover">
+        <div class="card-title-sm">Balance Neto (Ingresos − Gastos)</div>
+        <div class="card-value" style="color: ${isNetPositive ? 'var(--accent-blue)' : 'var(--accent-red)'};">
+          ${isNetPositive ? '+' : ''}$${netBalance.toLocaleString()} USD
+        </div>
+        <div class="card-subtext">${isNetPositive ? 'Utilidad neta disponible' : 'Pérdida temporal'}</div>
+      </div>
+
+      <div class="card glass apple-glass-hover">
+        <div class="card-title-sm">Tareas Pendientes</div>
+        <div class="card-value">${pendingTasks}</div>
+        <div class="card-subtext">de ${filteredTasks.length} tareas totales</div>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid-2">
+      <div class="card glass">
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Salud Financiera por Proyecto</h3>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          ${filteredPrjs.map(p => {
+            const prjTransactions = state.expenses.filter(e => e.projectId === p.id);
+            const prjIncome = prjTransactions.filter(e => e.type === 'INCOME').reduce((a, b) => a + b.amount, 0);
+            const prjSpent = prjTransactions.filter(e => e.type === 'EXPENSE').reduce((a, b) => a + b.amount, 0);
+            const prjNet = prjIncome - prjSpent;
+            const pct = p.budget > 0 ? Math.round((prjSpent / p.budget) * 100) : 0;
+            
+            return `
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600; margin-bottom: 4px;">
+                  <span style="display: flex; align-items: center; gap: 6px;">
+                    ${p.name}
+                    <button class="action-btn-sm" title="Editar Proyecto & Fechas" onclick="openProjectModal('${p.id}')"><i data-lucide="edit-2" style="width: 10px; height: 10px;"></i></button>
+                  </span>
+                  <span>Balance: <strong style="color: ${prjNet >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">${prjNet >= 0 ? '+' : ''}$${prjNet.toLocaleString()} USD</strong></span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px; display: flex; gap: 10px;">
+                  <span>📅 ${p.startDate || 'Inicio'} → ${p.endDate || 'Fin'}</span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Entradas: +$${prjIncome.toLocaleString()}</span>
+                  <span>Gastos: -$${prjSpent.toLocaleString()} (${pct}% presupuesto)</span>
+                </div>
+                <div class="progress-container">
+                  <div class="progress-fill ${pct >= 100 ? 'fill-red' : pct >= 80 ? 'fill-orange' : 'fill-blue'}" style="width: ${Math.min(pct, 100)}%;"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="card glass">
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Últimas Transacciones</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${state.expenses.slice(0, 4).map(exp => `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle);">
+              <div>
+                <div style="font-size: 13.5px; font-weight: 600;">${exp.concept}</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">${exp.category} • 📅 ${exp.date}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 700; font-size: 14px; color: ${exp.type === 'INCOME' ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                  ${exp.type === 'INCOME' ? '+' : '-'}$${exp.amount.toLocaleString()}
+                </span>
+                <button class="action-btn-sm" title="Editar Fecha & Transacción" onclick="openActionModal('expense', '${exp.id}')"><i data-lucide="edit-2" style="width: 10px; height: 10px;"></i></button>
+                <button class="action-btn-sm action-btn-danger" title="Eliminar" onclick="deleteTransaction('${exp.id}')"><i data-lucide="trash-2" style="width: 10px; height: 10px;"></i></button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 2. EXPENSES & FINANCE BALANCE VIEW RENDERER
+function renderExpensesView(container) {
+  let filteredExp = state.expenses.filter(e => state.activeProjectFilter === 'all' || e.projectId === state.activeProjectFilter);
+
+  if (state.financeFilter !== 'all') {
+    filteredExp = filteredExp.filter(e => e.type === state.financeFilter);
+  }
+
+  const totalIncome = filteredExp.filter(e => e.type === 'INCOME').reduce((a, b) => a + b.amount, 0);
+  const totalExpenses = filteredExp.filter(e => e.type === 'EXPENSE').reduce((a, b) => a + b.amount, 0);
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Finanzas y Transacciones</h1>
+        <p class="page-subtitle">Registro de Entradas y Salidas con fechas totalmente editables</p>
+      </div>
+
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; background: var(--bg-input); padding: 3px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <button class="icon-btn" style="width: auto; padding: 0 12px; height: 32px; border: none; background: ${state.financeFilter === 'all' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;" onclick="filterFinanceType('all')">
+            Todas
+          </button>
+          <button class="icon-btn" style="width: auto; padding: 0 12px; height: 32px; border: none; background: ${state.financeFilter === 'INCOME' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; color: var(--accent-green);" onclick="filterFinanceType('INCOME')">
+            📈 Entradas
+          </button>
+          <button class="icon-btn" style="width: auto; padding: 0 12px; height: 32px; border: none; background: ${state.financeFilter === 'EXPENSE' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; color: var(--accent-red);" onclick="filterFinanceType('EXPENSE')">
+            📉 Gastos
+          </button>
+        </div>
+
+        <button class="btn-primary" onclick="openActionModal()">
+          <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+          <span>Nuevo Registro</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary Bar -->
+    <div class="card glass" style="margin-bottom: 20px; padding: 16px 24px; flex-direction: row; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="font-size: 13.5px; font-weight: 600;">
+        Ingresos Totales: <span style="color: var(--accent-green);">+$${totalIncome.toLocaleString()} USD</span>
+      </div>
+      <div style="font-size: 13.5px; font-weight: 600;">
+        Gastos Totales: <span style="color: var(--accent-red);">-$${totalExpenses.toLocaleString()} USD</span>
+      </div>
+      <div style="font-size: 14px; font-weight: 700;">
+        Balance Neto: <span style="color: ${totalIncome - totalExpenses >= 0 ? 'var(--accent-blue)' : 'var(--accent-red)'};">${totalIncome - totalExpenses >= 0 ? '+' : ''}$${(totalIncome - totalExpenses).toLocaleString()} USD</span>
+      </div>
+    </div>
+
+    <!-- Table Container Apple Glass -->
+    <div class="table-container glass">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Concepto</th>
+            <th>Categoría</th>
+            <th>Proyecto</th>
+            <th>Fecha (Editable)</th>
+            <th>Monto</th>
+            <th style="text-align: right;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredExp.map(e => {
+            const prj = state.projects.find(p => p.id === e.projectId);
+            const isIncome = e.type === 'INCOME';
+            return `
+              <tr>
+                <td>
+                  <span class="badge ${isIncome ? 'badge-income' : 'badge-expense'}">
+                    ${isIncome ? '📈 Entrada' : '📉 Gasto'}
+                  </span>
+                </td>
+                <td style="font-weight: 600;">${e.concept}</td>
+                <td><span class="badge badge-blue">${e.category}</span></td>
+                <td>${prj ? prj.name : e.projectId}</td>
+                <td style="color: var(--text-main); font-weight: 500; font-size: 13px;">📅 ${e.date}</td>
+                <td style="font-weight: 700; color: ${isIncome ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                  ${isIncome ? '+' : '-'}$${e.amount.toLocaleString()} USD
+                </td>
+                <td style="text-align: right;">
+                  <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                    <button class="action-btn-sm" title="Editar Fecha & Datos" onclick="openActionModal('expense', '${e.id}')">
+                      <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    <button class="action-btn-sm action-btn-danger" title="Eliminar Transacción" onclick="deleteTransaction('${e.id}')">
+                      <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function filterFinanceType(type) {
+  state.financeFilter = type;
+  renderApp();
+}
+
+// 3. PROJECT DOCUMENTS MODULE RENDERER (LIGHTBOX PHOTO PREVIEWING FIXED)
+function renderProjectDocsView(container) {
+  let filteredDocs = state.projectDocs.filter(d =>
+    state.activeProjectFilter === 'all' || d.projectId === state.activeProjectFilter
+  );
+
+  if (state.docFormatFilter !== 'all') {
+    filteredDocs = filteredDocs.filter(d => d.format === state.docFormatFilter);
+  }
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Documentos del Proyecto</h1>
+        <p class="page-subtitle">Pega capturas (Ctrl+V), sube PDF o fotos y visualízalas en HD en 1 clic</p>
+      </div>
+
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; background: var(--bg-input); padding: 3px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <button class="icon-btn" style="width: auto; padding: 0 10px; height: 32px; border: none; background: ${state.docFormatFilter === 'all' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 600;" onclick="filterDocFormat('all')">
+            Todos
+          </button>
+          <button class="icon-btn" style="width: auto; padding: 0 10px; height: 32px; border: none; background: ${state.docFormatFilter === 'pdf' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 600; color: var(--accent-red);" onclick="filterDocFormat('pdf')">
+            📕 PDF
+          </button>
+          <button class="icon-btn" style="width: auto; padding: 0 10px; height: 32px; border: none; background: ${state.docFormatFilter === 'image' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 600; color: var(--accent-purple);" onclick="filterDocFormat('image')">
+            🖼️ Fotos / Screenshots
+          </button>
+          <button class="icon-btn" style="width: auto; padding: 0 10px; height: 32px; border: none; background: ${state.docFormatFilter === 'sheets' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm); font-size: 11.5px; font-weight: 600; color: var(--accent-green);" onclick="filterDocFormat('sheets')">
+            📊 Google Sheets
+          </button>
+        </div>
+
+        <button class="btn-primary" onclick="openActionModal()">
+          <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+          <span>Nuevo Documento</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Paste Banner -->
+    <div class="card glass" style="margin-bottom: 20px; padding: 14px 20px; border-left: 4px solid var(--accent-purple); display: flex; flex-direction: row; justify-content: space-between; align-items: center; cursor: pointer;" onclick="openActionModal('doc')">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <i data-lucide="clipboard" style="width: 20px; height: 20px; color: var(--accent-purple);"></i>
+        <div>
+          <div style="font-size: 13.5px; font-weight: 600;">📋 Pega capturas o fotos directamente con Ctrl+V</div>
+          <div style="font-size: 11.5px; color: var(--text-muted);">Copia cualquier imagen o captura al portapapeles y presiona Ctrl+V en esta pantalla</div>
+        </div>
+      </div>
+      <button class="btn-primary" style="padding: 6px 12px; font-size: 12px;">
+        <span>Pegar Foto</span>
+      </button>
+    </div>
+
+    <div class="docs-grid">
+      ${filteredDocs.map(doc => {
+        const prj = state.projects.find(p => p.id === doc.projectId);
+        
+        let formatBadge = `<span class="badge badge-red">📕 PDF</span>`;
+        if (doc.format === 'image') formatBadge = `<span class="badge badge-purple">🖼️ Foto / Screenshot</span>`;
+        else if (doc.format === 'sheets') formatBadge = `<span class="badge badge-green">📊 Google Sheets</span>`;
+        else if (doc.format === 'link') formatBadge = `<span class="badge badge-blue">🔗 Enlace Cloud</span>`;
+
+        return `
+          <div class="doc-card glass apple-glass-hover">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                ${formatBadge}
+                <div style="display: flex; items-center; gap: 4px;">
+                  <button class="action-btn-sm" title="Editar Fecha & Documento" onclick="openActionModal('doc', '${doc.id}')"><i data-lucide="edit-2" style="width: 10px; height: 10px;"></i></button>
+                  <button class="action-btn-sm action-btn-danger" title="Eliminar Documento" onclick="deleteProjectDoc('${doc.id}')"><i data-lucide="trash-2" style="width: 10px; height: 10px;"></i></button>
+                </div>
+              </div>
+              
+              ${doc.format === 'image' && (doc.previewUrl || doc.fileUrl) ? `
+                <div style="width: 100%; height: 140px; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 12px; border: 1px solid var(--border-color); background: #000; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="openImageLightbox('${doc.id}')" title="Haz clic para previsualizar en HD">
+                  <img src="${doc.previewUrl || doc.fileUrl}" alt="${doc.title}" style="width: 100%; height: 100%; object-fit: contain; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                </div>
+              ` : ''}
+
+              <h3 style="font-size: 15px; font-weight: 700; line-height: 1.3; margin-bottom: 6px;">${doc.title}</h3>
+              <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">${doc.description}</p>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">📅 Fecha: ${doc.date}</div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-subtle); margin-top: 10px;">
+              <span style="font-size: 11.5px; font-weight: 600; color: var(--accent-blue);">📁 ${prj ? prj.name : doc.projectId}</span>
+              ${doc.format === 'image' ? `
+                <button class="btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="openImageLightbox('${doc.id}')">
+                  <i data-lucide="eye" style="width: 12px; height: 12px;"></i>
+                  <span>Ver Foto</span>
+                </button>
+              ` : `
+                <a href="${doc.fileUrl}" target="_blank" class="btn-primary" style="padding: 4px 10px; font-size: 11px;">
+                  <i data-lucide="external-link" style="width: 12px; height: 12px;"></i>
+                  <span>${doc.format === 'sheets' ? 'Abrir Sheets' : 'Ver PDF'}</span>
+                </a>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function filterDocFormat(fmt) {
+  state.docFormatFilter = fmt;
+  renderApp();
+}
+
+// 4. TASKS & KANBAN VIEW RENDERER
+function renderTasksView(container) {
+  const filteredTasks = state.tasks.filter(t => state.activeProjectFilter === 'all' || t.projectId === state.activeProjectFilter);
+
+  const columns = [
+    { id: 'TODO', title: 'Por Hacer', color: 'var(--accent-orange)' },
+    { id: 'IN_PROGRESS', title: 'En Progreso', color: 'var(--accent-blue)' },
+    { id: 'IN_REVIEW', title: 'En Revisión', color: 'var(--accent-purple)' },
+    { id: 'COMPLETED', title: 'Completado', color: 'var(--accent-green)' }
+  ];
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Gestión de Tareas</h1>
+        <p class="page-subtitle">Asignación de responsables y fechas límite completamente editables</p>
+      </div>
+
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; background: var(--bg-input); padding: 3px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <button class="icon-btn" style="width: 32px; height: 32px; border: none; background: ${state.taskViewMode === 'kanban' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm);" onclick="switchTaskViewMode('kanban')" title="Vista Kanban">
+            <i data-lucide="kanban" style="width: 15px; height: 15px;"></i>
+          </button>
+          <button class="icon-btn" style="width: 32px; height: 32px; border: none; background: ${state.taskViewMode === 'table' ? 'var(--bg-card)' : 'transparent'}; border-radius: var(--radius-sm);" onclick="switchTaskViewMode('table')" title="Vista Tabla">
+            <i data-lucide="list" style="width: 15px; height: 15px;"></i>
+          </button>
+        </div>
+
+        <button class="btn-primary" onclick="openActionModal()">
+          <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+          <span>Nueva Tarea</span>
+        </button>
+      </div>
+    </div>
+
+    ${state.taskViewMode === 'kanban' ? `
+      <div class="kanban-board">
+        ${columns.map(col => {
+          const colTasks = filteredTasks.filter(t => t.status === col.id);
+          return `
+            <div class="kanban-column glass" data-col-id="${col.id}" ondragover="handleDragOver(event)" ondrop="handleDrop(event, '${col.id}')">
+              <div class="column-header">
+                <div class="column-title">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: ${col.color}; inline-block;"></span>
+                  <span>${col.title}</span>
+                </div>
+                <span class="column-count">${colTasks.length}</span>
+              </div>
+
+              ${colTasks.map(t => `
+                <div class="kanban-card glass apple-glass-hover" draggable="true" ondragstart="handleDragStart(event, '${t.id}')">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div class="card-title" onclick="advanceTaskStatus('${t.id}')" style="cursor: pointer; flex: 1;">${t.title}</div>
+                    <div style="display: flex; gap: 4px; margin-left: 6px;">
+                      <button class="action-btn-sm" title="Editar Tarea & Fecha" onclick="event.stopPropagation(); openActionModal('task', '${t.id}')"><i data-lucide="edit-2" style="width: 10px; height: 10px;"></i></button>
+                      <button class="action-btn-sm action-btn-danger" title="Eliminar Tarea" onclick="event.stopPropagation(); deleteTask('${t.id}')"><i data-lucide="trash-2" style="width: 10px; height: 10px;"></i></button>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+                    <span class="badge badge-blue" style="font-size: 10px;">${t.priority}</span>
+                    ${t.tags.map(tag => `<span class="badge" style="background: var(--bg-input); font-size: 10px;">${tag}</span>`).join('')}
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--text-muted);">
+                    <span style="font-weight: 600; color: var(--accent-blue);">👤 ${t.assignee}</span>
+                    <span>📅 Límite: ${t.dueDate}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : `
+      <div class="table-container glass">
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Estado</th>
+              <th>Prioridad</th>
+              <th>Responsable Asignado</th>
+              <th>Fecha Límite (Editable)</th>
+              <th style="text-align: right;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredTasks.map(t => `
+              <tr>
+                <td style="font-weight: 600;">${t.title}</td>
+                <td><span class="badge badge-blue">${t.status}</span></td>
+                <td><span class="badge badge-orange">${t.priority}</span></td>
+                <td style="font-weight: 600; color: var(--accent-blue);">👤 ${t.assignee}</td>
+                <td style="color: var(--text-main); font-weight: 500; font-size: 13px;">📅 ${t.dueDate}</td>
+                <td style="text-align: right;">
+                  <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                    <button class="action-btn-sm" title="Editar Tarea & Fecha" onclick="openActionModal('task', '${t.id}')"><i data-lucide="edit-2" style="width: 11px; height: 11px;"></i></button>
+                    <button class="action-btn-sm action-btn-danger" title="Eliminar Tarea" onclick="deleteTask('${t.id}')"><i data-lucide="trash-2" style="width: 11px; height: 11px;"></i></button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
+  `;
+}
+
+function switchTaskViewMode(mode) {
+  state.taskViewMode = mode;
+  renderApp();
+}
+
+let draggedTaskId = null;
+function handleDragStart(e, taskId) {
+  draggedTaskId = taskId;
+  e.dataTransfer.setData('text/plain', taskId);
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+}
+
+function handleDrop(e, targetStatus) {
+  e.preventDefault();
+  if (!draggedTaskId) return;
+  const task = state.tasks.find(t => t.id === draggedTaskId);
+  if (task) {
+    task.status = targetStatus;
+    renderApp();
+  }
+  draggedTaskId = null;
+}
+
+function advanceTaskStatus(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const statuses = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
+  const currentIndex = statuses.indexOf(task.status);
+  task.status = statuses[(currentIndex + 1) % statuses.length];
+  renderApp();
+}
+
+// 5. WIKI & KNOWLEDGE BASE VIEW RENDERER
+function renderWikiView(container) {
+  const activeDoc = state.wikiDocs.find(d => d.id === state.activeWikiDocId) || state.wikiDocs[0];
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Base de Conocimientos</h1>
+        <p class="page-subtitle">Documentación técnica y notas de proyecto estilo Apple Notes / Notion</p>
+      </div>
+      <button class="btn-primary" onclick="createNewWikiDoc()">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+        <span>Nueva Nota</span>
+      </button>
+    </div>
+
+    <div class="wiki-container">
+      <!-- Tree Sidebar -->
+      <div class="wiki-tree glass">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Documentos</div>
+        ${state.wikiDocs.map(doc => `
+          <div class="tree-item ${doc.id === activeDoc.id ? 'active' : ''}" onclick="selectWikiDoc('${doc.id}')" style="justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+              <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</span>
+            </div>
+            <button class="action-btn-sm action-btn-danger" style="width: 18px; height: 18px; border: none;" title="Eliminar" onclick="event.stopPropagation(); deleteWikiDoc('${doc.id}')">
+              <i data-lucide="trash-2" style="width: 10px; height: 10px;"></i>
+            </button>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Editor Canvas -->
+      <div class="wiki-editor glass">
+        <input type="text" class="editor-title" value="${activeDoc ? activeDoc.title : ''}" oninput="updateDocTitle('${activeDoc ? activeDoc.id : ''}', this.value)">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Última edición: ${activeDoc ? activeDoc.updatedAt : ''}</div>
+        <textarea class="editor-body" oninput="updateDocContent('${activeDoc ? activeDoc.id : ''}', this.value)">${activeDoc ? activeDoc.content : ''}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function selectWikiDoc(id) {
+  state.activeWikiDocId = id;
+  renderApp();
+}
+
+function createNewWikiDoc() {
+  const newDoc = {
+    id: 'doc-' + Date.now(),
+    title: 'Nueva Nota de Proyecto',
+    projectId: state.activeProjectFilter === 'all' ? 'PRJ-01' : state.activeProjectFilter,
+    updatedAt: getTodayIsoDate(),
+    content: 'Escribe aquí el contenido...'
+  };
+  state.wikiDocs.unshift(newDoc);
+  state.activeWikiDocId = newDoc.id;
+  renderApp();
+}
+
+function deleteWikiDoc(id) {
+  if (confirm('¿Eliminar esta nota de la base de conocimiento?')) {
+    state.wikiDocs = state.wikiDocs.filter(d => d.id !== id);
+    if (state.wikiDocs.length > 0) {
+      state.activeWikiDocId = state.wikiDocs[0].id;
+    }
+    renderApp();
+  }
+}
+
+function updateDocTitle(id, val) {
+  const doc = state.wikiDocs.find(d => d.id === id);
+  if (doc) doc.title = val;
+}
+
+function updateDocContent(id, val) {
+  const doc = state.wikiDocs.find(d => d.id === id);
+  if (doc) doc.content = val;
+}

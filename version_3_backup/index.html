@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PROYECTOS RC | Gestión Multiproyecto Estilo Apple</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <!-- Overlay para cierre del Drawer Móvil -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Visor Modal Lightbox de Fotos HD -->
+  <div class="lightbox-backdrop" id="image-lightbox-modal">
+    <div class="lightbox-container">
+      <button class="icon-btn" id="close-lightbox-btn" style="position: absolute; top: -48px; right: 0; background: rgba(255,255,255,0.2); color: white; border: none;">
+        <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+      </button>
+      
+      <div class="lightbox-img-wrapper">
+        <img id="lightbox-img" src="" alt="Vista de Foto en Alta Resolución">
+      </div>
+
+      <div class="lightbox-footer">
+        <div>
+          <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 2px;" id="lightbox-title">Título de la Foto</h4>
+          <div style="font-size: 12px; color: var(--text-muted);" id="lightbox-subtitle">Proyecto • Fecha</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <a id="lightbox-download-btn" href="#" download="foto.png" target="_blank" class="btn-primary" style="padding: 6px 12px; font-size: 12px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Descargar Foto</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Colapsable Translúcida estilo macOS Tahoe -->
+    <aside class="sidebar glass-sidebar" id="app-sidebar">
+      <div>
+        <div class="sidebar-header">
+          <div class="logo-badge">RC</div>
+          <div>
+            <div class="sidebar-title">PROYECTOS RC</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Workspace Studio Pro</div>
+          </div>
+        </div>
+
+        <nav>
+          <div class="nav-section-title">General</div>
+          <ul class="nav-list">
+            <li>
+              <a class="nav-item active" data-view="dashboard">
+                <i data-lucide="layout-dashboard"></i>
+                <span>Dashboard</span>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" data-view="expenses">
+                <i data-lucide="wallet"></i>
+                <span>Finanzas y Balance</span>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" data-view="tasks">
+                <i data-lucide="kanban"></i>
+                <span>Tareas y Kanban</span>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" data-view="docs">
+                <i data-lucide="folder-archive"></i>
+                <span>Documentos del Proyecto</span>
+              </a>
+            </li>
+            <li>
+              <a class="nav-item" data-view="wiki">
+                <i data-lucide="book-open"></i>
+                <span>Base de Conocimiento</span>
+              </a>
+            </li>
+          </ul>
+
+          <div class="nav-section-title" style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Proyectos Activos</span>
+            <button class="action-btn-sm" id="sidebar-add-project-btn" title="Nuevo Proyecto" style="width: 20px; height: 20px; border: none;">
+              <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+            </button>
+          </div>
+          <ul class="nav-list" id="sidebar-projects-list">
+            <!-- Rendered dynamically -->
+          </ul>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="avatar">EA</div>
+          <div>
+            <div style="font-size: 13px; font-weight: 600;">Edmundo A.</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Lead UI/UX Architect</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      
+      <!-- Top Navbar Header -->
+      <header class="top-navbar glass-header">
+        <div class="navbar-left">
+          <!-- Mobile Menu Hamburger Button -->
+          <button class="mobile-nav-toggle" id="mobile-menu-btn" title="Abrir Menú">
+            <i data-lucide="menu" style="width: 20px; height: 20px;"></i>
+          </button>
+
+          <!-- Project / Workspace Switcher Dropdown Toggle -->
+          <div class="workspace-select-btn" id="workspace-switcher">
+            <i data-lucide="briefcase" style="width: 16px; height: 16px; color: var(--accent-blue);"></i>
+            <span id="current-project-label">Todos los Proyectos (3)</span>
+            <i data-lucide="chevron-down" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+          </div>
+
+          <!-- Project Dropdown Popover Menu -->
+          <div class="dropdown-menu" id="project-dropdown-menu">
+            <div class="dropdown-header-title">
+              <span>Seleccionar Proyecto</span>
+              <button class="action-btn-sm" id="dropdown-add-project-btn" title="Crear Proyecto" style="width: 22px; height: 22px;">
+                <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+              </button>
+            </div>
+            <div id="dropdown-project-items" style="display: flex; flex-direction: column; gap: 2px;">
+              <!-- Dynamic Project Items injected via app.js -->
+            </div>
+          </div>
+        </div>
+
+        <div class="navbar-right">
+          <!-- Spotlight Launcher Button -->
+          <div class="spotlight-trigger-btn" id="spotlight-btn">
+            <i data-lucide="search" style="width: 15px; height: 15px;"></i>
+            <span>Buscar finanzas, tareas, PDF, fotos o Google Sheets...</span>
+            <span class="kbd-badge">⌘K</span>
+          </div>
+
+          <!-- Share Link Button for URL Data Sync -->
+          <button class="icon-btn" id="share-link-btn" title="Compartir Enlace con Datos (Copiar URL con cambios)" style="width: auto; padding: 0 12px; border-radius: var(--radius-md); font-size: 12.5px; font-weight: 600; gap: 6px; background: rgba(175, 82, 222, 0.15); color: var(--accent-purple); border-color: rgba(175, 82, 222, 0.3);">
+            <i data-lucide="share-2" style="width: 15px; height: 15px;"></i>
+            <span class="desktop-only">Compartir Link</span>
+          </button>
+
+          <!-- Theme Toggle -->
+          <button class="icon-btn" id="theme-toggle-btn" title="Cambiar Tema Claro / Oscuro">
+            <i data-lucide="moon" id="theme-icon" style="width: 18px; height: 18px;"></i>
+          </button>
+
+          <!-- New Quick Action -->
+          <button class="btn-primary" id="quick-add-btn">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            <span>Nuevo Registro</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Toast Notification Container -->
+      <div id="toast-notification" style="position: fixed; bottom: 24px; right: 24px; background: var(--accent-purple); color: white; padding: 12px 20px; border-radius: var(--radius-lg); font-size: 13px; font-weight: 600; box-shadow: var(--shadow-lg); z-index: 300; display: none; align-items: center; gap: 8px;">
+        <i data-lucide="check-circle" style="width: 18px; height: 18px;"></i>
+        <span id="toast-message">Link copiado al portapapeles!</span>
+      </div>
+
+      <!-- Dynamic Viewport Content -->
+      <main class="content-viewport" id="app-viewport">
+        <!-- Views rendered dynamically via JavaScript -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal Global Spotlight Cmd + K -->
+  <div class="modal-backdrop" id="spotlight-modal">
+    <div class="spotlight-dialog glass">
+      <div class="spotlight-input-wrapper">
+        <i data-lucide="search" style="width: 20px; height: 20px; color: var(--accent-blue);"></i>
+        <input type="text" class="spotlight-input" id="spotlight-search-input" placeholder="Escribe para buscar proyectos, tareas, PDF, fotos o hojas de Google..." autofocus>
+        <span class="kbd-badge">ESC</span>
+      </div>
+      <div class="spotlight-results" id="spotlight-results-container">
+        <!-- Search Results dynamic -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Crear / Editar Proyecto (con Categorías Personalizadas de Proyecto) -->
+  <div class="modal-backdrop" id="project-modal">
+    <div class="spotlight-dialog glass" style="padding: 24px; width: 480px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="font-size: 18px; font-weight: 700;" id="project-modal-title">Nuevo Proyecto</h3>
+        <button class="icon-btn" id="close-project-modal"><i data-lucide="x"></i></button>
+      </div>
+
+      <form id="project-form" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="form-prj-editing-id" value="">
+        
+        <div>
+          <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Nombre del Proyecto</label>
+          <input type="text" id="form-prj-name" required placeholder="Ej. Rediseño App iOS u Portal Clientes" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Código / ID</label>
+            <input type="text" id="form-prj-code" required placeholder="Ej. PRJ-04" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Presupuesto (Formato $16,450)</label>
+            <input type="number" id="form-prj-budget" required placeholder="16450" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+          </div>
+        </div>
+
+        <!-- Editable Project Dates -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Fecha Inicio</label>
+            <input type="date" id="form-prj-startdate" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 13.5px;">
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Fecha Término</label>
+            <input type="date" id="form-prj-enddate" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 13.5px;">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Categoría del Proyecto (Editable / Agregar)</label>
+          <select id="form-prj-category" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            <option value="Mobile App">Mobile App</option>
+            <option value="Web App">Web App / SaaS</option>
+            <option value="Design">Diseño UI/UX & Branding</option>
+            <option value="Infrastructure">Infraestructura Cloud</option>
+            <option value="Marketing">Marketing & Launch</option>
+            <option value="CUSTOM">➕ Agregar Nueva Categoría de Proyecto...</option>
+          </select>
+        </div>
+
+        <div id="custom-prj-category-wrapper" style="display: none;">
+          <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--accent-purple); display: block; margin-bottom: 6px;">Nombre de la Nueva Categoría de Proyecto</label>
+          <input type="text" id="form-custom-prj-category-input" placeholder="Ej. Inteligencia Artificial, E-commerce, Consultoría..." style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--accent-purple); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top: 10px; width: 100%; justify-content: center;">
+          <span>Guardar Proyecto</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar / Editar Registro -->
+  <div class="modal-backdrop" id="action-modal">
+    <div class="spotlight-dialog glass" style="padding: 24px; width: 520px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="font-size: 18px; font-weight: 700;" id="modal-form-title">Nuevo Registro</h3>
+        <button class="icon-btn" id="close-action-modal"><i data-lucide="x"></i></button>
+      </div>
+
+      <form id="action-form" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="form-editing-id" value="">
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Tipo de Entrada</label>
+          <select id="form-type" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            <option value="doc">📁 Documento / Foto / Screenshot Pegado</option>
+            <option value="income">📈 Entrada / Ingreso (+)</option>
+            <option value="expense">📉 Salida / Gasto (-)</option>
+            <option value="task">📋 Tarea (con fecha límite editable)</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Concepto / Título del Registro</label>
+          <input type="text" id="form-title" required placeholder="Ej. Captura de Maqueta UI o Factura en PDF" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+        </div>
+
+        <!-- Task Specific Fields -->
+        <div id="form-task-fields" style="display: none;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Asignar a (Responsable)</label>
+                <select id="form-task-assignee" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+                  <option value="Edmundo A.">👤 Edmundo A. (Lead Architect)</option>
+                  <option value="Sofia R.">👤 Sofia R. (Frontend Dev)</option>
+                  <option value="Carlos M.">👤 Carlos M. (Backend Lead)</option>
+                  <option value="Lucia P.">👤 Lucia P. (UI/UX Designer)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Prioridad</label>
+                <select id="form-task-priority" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+                  <option value="LOW">Baja (LOW)</option>
+                  <option value="MEDIUM" selected>Media (MEDIUM)</option>
+                  <option value="HIGH">Alta (HIGH)</option>
+                  <option value="URGENT">Urgente (URGENT)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Fecha Límite de la Tarea (Editable)</label>
+              <input type="date" id="form-task-duedate" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Document Fields -->
+        <div id="form-doc-fields">
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Formato</label>
+                <select id="form-doc-format" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+                  <option value="image">🖼️ Foto / Screenshot Pegado (Ctrl+V)</option>
+                  <option value="pdf">📕 Archivo PDF (.pdf)</option>
+                  <option value="sheets">📊 Enlace a Google Sheets</option>
+                  <option value="link">🔗 Enlace a Documento Cloud</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Fecha del Documento</label>
+                <input type="date" id="form-doc-date" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+              </div>
+            </div>
+
+            <div id="doc-paste-dropzone" class="paste-dropzone" tabindex="0">
+              <i data-lucide="clipboard" style="width: 26px; height: 26px; color: var(--accent-purple);"></i>
+              <div style="font-size: 13.5px; font-weight: 600;" id="paste-dropzone-title">📋 Presiona Ctrl+V para pegar una foto o screenshot</div>
+              <div style="font-size: 11px; color: var(--text-muted);" id="paste-dropzone-subtitle">o haz clic para seleccionar / arrastrar una imagen o PDF</div>
+            </div>
+
+            <div id="pasted-preview-container" class="pasted-image-preview" style="display: none;">
+              <img id="pasted-preview-img" src="" alt="Previsualización de Foto Pegada">
+            </div>
+
+            <input type="file" id="form-doc-file" accept=".pdf,image/*" style="display: none;">
+
+            <div id="doc-url-wrapper" style="display: none;">
+              <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Enlace a Google Sheets / Google Drive</label>
+              <input type="url" id="form-doc-sheets-url" placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMd..." style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Expense / Income Fields -->
+        <div id="form-finance-fields" style="display: none;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Monto (Ej. 16450 o 16450.50)</label>
+                <input type="number" step="any" id="form-amount" placeholder="16450" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+              </div>
+              <div>
+                <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Categoría</label>
+                <select id="form-category" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+                  <option value="Facturación / Cobro">Facturación / Cobro</option>
+                  <option value="Software">Software & Cloud</option>
+                  <option value="Diseño">Diseño UI/UX</option>
+                  <option value="Desarrollo">Desarrollo Frontend/Backend</option>
+                  <option value="Infraestructura">Infraestructura & Server</option>
+                  <option value="Marketing">Marketing & Ads</option>
+                  <option value="CUSTOM">➕ Agregar Nueva Categoría...</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="custom-category-wrapper" style="display: none;">
+              <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--accent-purple); display: block; margin-bottom: 6px;">Nombre de la Nueva Categoría</label>
+              <input type="text" id="form-custom-category-input" placeholder="Ej. Equipo Hardware, Viáticos, Legal..." style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--accent-purple); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            </div>
+
+            <div>
+              <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Fecha de la Transacción (Editable)</label>
+              <input type="date" id="form-finance-date" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Proyecto Asignado</label>
+          <select id="form-project" style="width: 100%; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 14px;">
+            <!-- Rendered dynamically -->
+          </select>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top: 10px; width: 100%; justify-content: center;">
+          <span>Guardar Registro</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
