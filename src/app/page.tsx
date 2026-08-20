@@ -254,7 +254,7 @@ export default function Home() {
         } else {
           const remote = await realtimeSync.fetchFromCloud();
 
-          if (remote && Array.isArray(remote.projects) && !remote.notFound) {
+          if (remote && Array.isArray(remote.projects)) {
             applyWorkspaceState(remote);
           } else {
             loadLocalFallbackOrEmptyState();
