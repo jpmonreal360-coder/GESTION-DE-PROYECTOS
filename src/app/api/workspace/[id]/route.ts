@@ -4,10 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const KVDB_BUCKET = '6n9f8j7k6l5m4n3b2a1c';
 const FIREBASE_DB_URL = 'https://rc-proyectos-default-rtdb.firebaseio.com/workspaces';
 const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/66b0a1a0acd3cb34a87123a1';
 
-// Helper to get persistent Firebase REST URL for a workspaceId
+function getKvdbUrl(wsId: string): string {
+  return `https://kvdb.io/${KVDB_BUCKET}/ws_${encodeURIComponent(wsId)}`;
+}
+
 function getFirebaseWorkspaceUrl(wsId: string): string {
   return `${FIREBASE_DB_URL}/${encodeURIComponent(wsId)}.json`;
 }
@@ -26,9 +30,9 @@ export async function GET(
   };
 
   try {
-    // 1. Primary Persistent Database Query (Firebase Realtime DB REST API)
-    const firebaseUrl = getFirebaseWorkspaceUrl(workspaceId);
-    const res = await fetch(firebaseUrl, {
+    // 1. Tier 1: Persistent Public Cloud KV Store (KVDB.io)
+    const kvUrl = getKvdbUrl(workspaceId);
+    const kvRes = await fetch(kvUrl, {
       method: 'GET',
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -37,9 +41,9 @@ export async function GET(
       cache: 'no-store'
     }).catch(() => null);
 
-    if (res && res.ok) {
-      const record = await res.json();
-      if (record && Array.isArray(record.projects) && record.projects.length >= 0) {
+    if (kvRes && kvRes.ok) {
+      const record = await kvRes.json().catch(() => null);
+      if (record && Array.isArray(record.projects)) {
         return NextResponse.json(
           {
             ...record,
@@ -51,7 +55,32 @@ export async function GET(
       }
     }
 
-    // 2. Secondary Persistent Database Query Fallback (JSONBin)
+    // 2. Tier 2: Persistent Firebase Realtime DB REST API Fallback
+    const firebaseUrl = getFirebaseWorkspaceUrl(workspaceId);
+    const fbRes = await fetch(firebaseUrl, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      cache: 'no-store'
+    }).catch(() => null);
+
+    if (fbRes && fbRes.ok) {
+      const record = await fbRes.json().catch(() => null);
+      if (record && Array.isArray(record.projects)) {
+        return NextResponse.json(
+          {
+            ...record,
+            workspaceId,
+            updatedAt: Number(record.updatedAt) || Date.now()
+          },
+          { status: 200, headers: noCacheHeaders }
+        );
+      }
+    }
+
+    // 3. Tier 3: Secondary JSONBin Persistent Fallback
     const binRes = await fetch(JSONBIN_URL, {
       method: 'GET',
       headers: {
@@ -62,7 +91,7 @@ export async function GET(
     }).catch(() => null);
 
     if (binRes && binRes.ok) {
-      const payload = await binRes.json();
+      const payload = await binRes.json().catch(() => null);
       const record = payload ? (payload.record || payload.data || payload) : null;
       if (record && record.workspaceId === workspaceId && Array.isArray(record.projects)) {
         return NextResponse.json(
@@ -114,40 +143,29 @@ export async function PUT(
       updatedAt
     };
 
-    // Upsert into Persistent Shared Cloud Database (Firebase Realtime DB REST)
+    // Upsert into Persistent KV Cloud Store (KVDB.io)
+    const kvUrl = getKvdbUrl(workspaceId);
+    await fetch(kvUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recordState)
+    }).catch(() => null);
+
+    // Also update Firebase Realtime DB REST asynchronously
     const firebaseUrl = getFirebaseWorkspaceUrl(workspaceId);
-    const dbRes = await fetch(firebaseUrl, {
+    fetch(firebaseUrl, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(recordState)
     }).catch(() => null);
 
     // Also update secondary JSONBin store asynchronously
     fetch(JSONBIN_URL, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(recordState)
-    }).catch(() => {});
+    }).catch(() => null);
 
-    if (dbRes && (dbRes.status === 200 || dbRes.status === 201)) {
-      return NextResponse.json(
-        {
-          ...recordState,
-          success: true,
-          workspaceId,
-          updatedAt
-        },
-        { status: 200, headers: noCacheHeaders }
-      );
-    }
-
-    // Fallback if primary DB write returned status != 200
     return NextResponse.json(
       {
         ...recordState,
