@@ -26,6 +26,7 @@ export default function Home() {
   const [hydrated, setHydrated] = useState<boolean>(false);
   const skipNextCloudSave = useRef<boolean>(true);
   const lastRemoteTimestamp = useRef<number>(0);
+  const saveQueue = useRef<Promise<any>>(Promise.resolve(undefined));
 
   // Modal States
   const [isSpotlightOpen, setIsSpotlightOpen] = useState<boolean>(false);
@@ -132,7 +133,16 @@ export default function Home() {
   const [documents, setDocuments] = useState<Document[]>(defaultDocuments);
   const [wikiDocs, setWikiDocs] = useState<WikiDoc[]>(defaultWikiDocs);
 
-  // 2. Function to apply workspace state without triggering an auto-save
+  // Serialized Save Queue to prevent concurrent PUT requests
+  const queueSave = useCallback((snapshot: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>) => {
+    saveQueue.current = saveQueue.current
+      .catch(() => undefined)
+      .then(() => realtimeSync.saveToCloud(snapshot));
+
+    return saveQueue.current;
+  }, []);
+
+  // 2. Apply Workspace State without triggering an auto-save
   const applyWorkspaceState = useCallback((data: any) => {
     skipNextCloudSave.current = true;
     if (Array.isArray(data.projects)) setProjects(data.projects);
@@ -142,7 +152,9 @@ export default function Home() {
     if (Array.isArray(data.wikiDocs)) setWikiDocs(data.wikiDocs);
     if (Array.isArray(data.categories)) setCategories(data.categories);
     if (Array.isArray(data.projectCategories)) setProjectCategories(data.projectCategories);
-    lastRemoteTimestamp.current = Number(data.updatedAt ?? 0);
+    const ts = Number(data.updatedAt ?? 0);
+    lastRemoteTimestamp.current = ts;
+    realtimeSync.setLastRemoteTimestamp(ts);
   }, []);
 
   const loadLocalFallbackOrEmptyState = useCallback(() => {
@@ -215,11 +227,11 @@ export default function Home() {
       try {
         if (stateFromUrl) {
           applyWorkspaceState(stateFromUrl);
-          await realtimeSync.saveToCloud(stateFromUrl);
+          await queueSave(stateFromUrl);
         } else {
           const remote = await realtimeSync.fetchFromCloud();
 
-          if (remote && Array.isArray(remote.projects)) {
+          if (remote && Array.isArray(remote.projects) && !remote.notFound) {
             applyWorkspaceState(remote);
           } else {
             loadLocalFallbackOrEmptyState();
@@ -235,9 +247,9 @@ export default function Home() {
 
     void bootstrap();
     return () => { cancelled = true; };
-  }, [applyWorkspaceState, loadLocalFallbackOrEmptyState]);
+  }, [applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
 
-  // 4. Automatic Persistence Effect (Executed ONLY AFTER hydrated === true)
+  // 4. Centralized Automatic Persistence Effect (Executed ONLY AFTER hydrated === true)
   useEffect(() => {
     if (!hydrated) return;
 
@@ -255,7 +267,7 @@ export default function Home() {
       return;
     }
 
-    void realtimeSync.saveToCloud({
+    void queueSave({
       isCustomized: true,
       projects,
       expenses,
@@ -277,9 +289,10 @@ export default function Home() {
     wikiDocs,
     categories,
     projectCategories,
+    queueSave,
   ]);
 
-  // 5. Subscription/Polling installed ONLY AFTER hydrated === true
+  // 5. Subscription/Polling installed ONLY AFTER hydrated === true with proper cleanup
   useEffect(() => {
     if (!hydrated) return;
 
@@ -333,13 +346,13 @@ export default function Home() {
       projectCategories,
     };
 
-    const isSuccess = await realtimeSync.saveToCloud(stateObj);
+    const isSuccess = await queueSave(stateObj);
     if (isSuccess) {
       triggerToast('💾 ¡Todos tus cambios han sido GRABADOS en la Nube exitosamente!');
     } else {
       triggerToast('⚠️ No se pudo conectar al servidor remoto. Usa el enlace compartido para enviar los datos.');
     }
-  }, [projects, expenses, tasks, documents, wikiDocs, categories, projectCategories]);
+  }, [projects, expenses, tasks, documents, wikiDocs, categories, projectCategories, queueSave]);
 
   // Generate Shared Link with Full Base64 URL-Safe State (#state=encodedData)
   const handleShareLink = async () => {
@@ -365,7 +378,7 @@ export default function Home() {
       setIsCopied(false);
       setIsShareModalOpen(true);
 
-      const isSaved = await realtimeSync.saveToCloud(stateObj);
+      const isSaved = await queueSave(stateObj);
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(fullUrl);
@@ -392,7 +405,7 @@ export default function Home() {
     }
   };
 
-  // Project Handlers with Mandatory Cloud Save
+  // Single Path of Persistence: CRUD handlers ONLY mutate local React state!
   const handleOpenNewProjectModal = () => {
     setProjectToEdit(null);
     setIsProjectModalOpen(true);
@@ -405,14 +418,13 @@ export default function Home() {
 
   const handleSaveProject = (data: Partial<Project>) => {
     setIsCustomized(true);
-    let updatedProjects: Project[];
 
     if (data.category && !projectCategories.includes(data.category)) {
       setProjectCategories(prev => [...prev, data.category!]);
     }
 
     if (data.id) {
-      updatedProjects = projects.map(p => p.id === data.id ? { ...p, ...data } as Project : p);
+      setProjects(prev => prev.map(p => p.id === data.id ? { ...p, ...data } as Project : p));
     } else {
       const newPrj: Project = {
         id: 'PRJ-' + Date.now(),
@@ -427,24 +439,11 @@ export default function Home() {
         endDate: data.endDate,
         color: '#007AFF'
       };
-      updatedProjects = [...projects, newPrj];
+      setProjects(prev => [...prev, newPrj]);
       setActiveProjectFilter(newPrj.id);
     }
 
-    setProjects(updatedProjects);
-
-    realtimeSync.saveToCloud({
-      isCustomized: true,
-      projects: updatedProjects,
-      expenses,
-      tasks,
-      documents,
-      wikiDocs,
-      categories,
-      projectCategories,
-    });
-
-    triggerToast('✅ Proyecto grabado exitosamente en la Nube.');
+    triggerToast('✅ Proyecto guardado exitosamente.');
   };
 
   const handleDeleteProject = (id: string) => {
@@ -453,33 +452,17 @@ export default function Home() {
 
     if (confirm(`¿Eliminar el proyecto "${prj.name}"? Se borrarán sus transacciones, tareas y documentos en la nube.`)) {
       setIsCustomized(true);
-      const updatedProjects = projects.filter(p => p.id !== id);
-      const updatedExpenses = expenses.filter(e => e.projectId !== id);
-      const updatedTasks = tasks.filter(t => t.projectId !== id);
-      const updatedDocs = documents.filter(d => d.projectId !== id);
-
-      setProjects(updatedProjects);
-      setExpenses(updatedExpenses);
-      setTasks(updatedTasks);
-      setDocuments(updatedDocs);
+      setProjects(prev => prev.filter(p => p.id !== id));
+      setExpenses(prev => prev.filter(e => e.projectId !== id));
+      setTasks(prev => prev.filter(t => t.projectId !== id));
+      setDocuments(prev => prev.filter(d => d.projectId !== id));
       if (activeProjectFilter === id) setActiveProjectFilter('all');
 
-      realtimeSync.saveToCloud({
-        isCustomized: true,
-        projects: updatedProjects,
-        expenses: updatedExpenses,
-        tasks: updatedTasks,
-        documents: updatedDocs,
-        wikiDocs,
-        categories,
-        projectCategories,
-      });
-
-      triggerToast(`🗑️ Proyecto "${prj.name}" y sus datos fueron ELIMINADOS y GRABADOS en la Nube.`);
+      triggerToast(`🗑️ Proyecto "${prj.name}" y sus datos fueron ELIMINADOS.`);
     }
   };
 
-  // Action Modal Handlers
+  // Action Modal Handlers: Single Path of Persistence
   const handleOpenNewActionModal = (type: 'expense' | 'task' | 'doc' = 'doc') => {
     setEditType(null);
     setEditItem(null);
@@ -488,14 +471,13 @@ export default function Home() {
 
   const handleSaveExpense = (data: Partial<Expense>) => {
     setIsCustomized(true);
-    let updatedExpenses: Expense[];
 
     if (data.category && !categories.includes(data.category)) {
       setCategories(prev => [...prev, data.category!]);
     }
 
     if (data.id) {
-      updatedExpenses = expenses.map(e => e.id === data.id ? { ...e, ...data } as Expense : e);
+      setExpenses(prev => prev.map(e => e.id === data.id ? { ...e, ...data } as Expense : e));
     } else {
       const newExp: Expense = {
         id: 'exp-' + Date.now(),
@@ -507,52 +489,25 @@ export default function Home() {
         date: data.date || new Date().toISOString().split('T')[0],
         status: 'PAID'
       };
-      updatedExpenses = [newExp, ...expenses];
+      setExpenses(prev => [newExp, ...prev]);
     }
 
-    setExpenses(updatedExpenses);
-
-    realtimeSync.saveToCloud({
-      isCustomized: true,
-      projects,
-      expenses: updatedExpenses,
-      tasks,
-      documents,
-      wikiDocs,
-      categories,
-      projectCategories,
-    });
-
-    triggerToast('✅ Transacción grabada exitosamente en la Nube.');
+    triggerToast('✅ Transacción guardada exitosamente.');
   };
 
   const handleDeleteExpense = (id: string) => {
     if (confirm('¿Eliminar esta transacción financiera?')) {
       setIsCustomized(true);
-      const updated = expenses.filter(e => e.id !== id);
-      setExpenses(updated);
-
-      realtimeSync.saveToCloud({
-        isCustomized: true,
-        projects,
-        expenses: updated,
-        tasks,
-        documents,
-        wikiDocs,
-        categories,
-        projectCategories,
-      });
-
-      triggerToast('🗑️ Transacción eliminada y grabada en la Nube.');
+      setExpenses(prev => prev.filter(e => e.id !== id));
+      triggerToast('🗑️ Transacción eliminada.');
     }
   };
 
   const handleSaveTask = (data: Partial<Task>) => {
     setIsCustomized(true);
-    let updatedTasks: Task[];
 
     if (data.id) {
-      updatedTasks = tasks.map(t => t.id === data.id ? { ...t, ...data } as Task : t);
+      setTasks(prev => prev.map(t => t.id === data.id ? { ...t, ...data } as Task : t));
     } else {
       const newTask: Task = {
         id: 'tsk-' + Date.now(),
@@ -565,76 +520,36 @@ export default function Home() {
         dueDate: data.dueDate || new Date().toISOString().split('T')[0],
         tags: ['Asignado']
       };
-      updatedTasks = [newTask, ...tasks];
+      setTasks(prev => [newTask, ...prev]);
     }
 
-    setTasks(updatedTasks);
-
-    realtimeSync.saveToCloud({
-      isCustomized: true,
-      projects,
-      expenses,
-      tasks: updatedTasks,
-      documents,
-      wikiDocs,
-      categories,
-      projectCategories,
-    });
-
-    triggerToast('✅ Tarea grabada exitosamente en la Nube.');
+    triggerToast('✅ Tarea guardada exitosamente.');
   };
 
   const handleDeleteTask = (id: string) => {
     if (confirm('¿Eliminar esta tarea?')) {
       setIsCustomized(true);
-      const updated = tasks.filter(t => t.id !== id);
-      setTasks(updated);
-
-      realtimeSync.saveToCloud({
-        isCustomized: true,
-        projects,
-        expenses,
-        tasks: updated,
-        documents,
-        wikiDocs,
-        categories,
-        projectCategories,
-      });
-
-      triggerToast('🗑️ Tarea eliminada y grabada en la Nube.');
+      setTasks(prev => prev.filter(t => t.id !== id));
+      triggerToast('🗑️ Tarea eliminada.');
     }
   };
 
   const handleAdvanceTaskStatus = (id: string) => {
     setIsCustomized(true);
-    const updatedTasks = tasks.map(t => {
+    setTasks(prev => prev.map(t => {
       if (t.id !== id) return t;
       const statuses: ('TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED')[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
       const curIndex = statuses.indexOf(t.status as any);
       const nextStatus = statuses[(curIndex + 1) % statuses.length];
       return { ...t, status: nextStatus };
-    });
-
-    setTasks(updatedTasks);
-
-    realtimeSync.saveToCloud({
-      isCustomized: true,
-      projects,
-      expenses,
-      tasks: updatedTasks,
-      documents,
-      wikiDocs,
-      categories,
-      projectCategories,
-    });
+    }));
   };
 
   const handleSaveDocument = (data: Partial<Document>) => {
     setIsCustomized(true);
-    let updatedDocs: Document[];
 
     if (data.id) {
-      updatedDocs = documents.map(d => d.id === data.id ? { ...d, ...data } as Document : d);
+      setDocuments(prev => prev.map(d => d.id === data.id ? { ...d, ...data } as Document : d));
     } else {
       const newDoc: Document = {
         id: 'pdoc-' + Date.now(),
@@ -649,64 +564,25 @@ export default function Home() {
         previewUrl: data.previewUrl,
         description: data.description || 'Documento adjunto'
       };
-      updatedDocs = [newDoc, ...documents];
+      setDocuments(prev => [newDoc, ...prev]);
     }
 
-    setDocuments(updatedDocs);
     setCurrentView('docs');
-
-    realtimeSync.saveToCloud({
-      isCustomized: true,
-      projects,
-      expenses,
-      tasks,
-      documents: updatedDocs,
-      wikiDocs,
-      categories,
-      projectCategories,
-    });
-
-    triggerToast('✅ Documento grabado exitosamente en la Nube.');
+    triggerToast('✅ Documento guardado exitosamente.');
   };
 
   const handleDeleteDocument = (id: string) => {
     if (confirm('¿Eliminar este documento?')) {
       setIsCustomized(true);
-      const updated = documents.filter(d => d.id !== id);
-      setDocuments(updated);
-
-      realtimeSync.saveToCloud({
-        isCustomized: true,
-        projects,
-        expenses,
-        tasks,
-        documents: updated,
-        wikiDocs,
-        categories,
-        projectCategories,
-      });
-
-      triggerToast('🗑️ Documento eliminado y grabado en la Nube.');
+      setDocuments(prev => prev.filter(d => d.id !== id));
+      triggerToast('🗑️ Documento eliminado.');
     }
   };
 
   const handleSaveWikiDoc = (updatedWikiDoc: WikiDoc) => {
     setIsCustomized(true);
-    const updatedWiki = wikiDocs.map(w => w.id === updatedWikiDoc.id ? updatedWikiDoc : w);
-    setWikiDocs(updatedWiki);
-
-    realtimeSync.saveToCloud({
-      isCustomized: true,
-      projects,
-      expenses,
-      tasks,
-      documents,
-      wikiDocs: updatedWiki,
-      categories,
-      projectCategories,
-    });
-
-    triggerToast('✅ Nota grabada exitosamente en la Nube.');
+    setWikiDocs(prev => prev.map(w => w.id === updatedWikiDoc.id ? updatedWikiDoc : w));
+    triggerToast('✅ Nota guardada exitosamente.');
   };
 
   const handleOpenLightbox = (doc: Document) => {

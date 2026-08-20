@@ -1,4 +1,4 @@
-// Universal Real-time Multi-Device Sync Engine (Strict Hydration Control & Explicit Return)
+// Universal Real-time Multi-Device Sync Engine (Persistent Database Backend & Strict Polling Cleanup)
 
 export interface SyncPayload {
   workspaceId: string;
@@ -36,10 +36,10 @@ const getNativeApiUrl = (wsId: string) => `/api/workspace/${encodeURIComponent(w
 class RealtimeSyncEngine {
   private broadcastChannel: BroadcastChannel | null = null;
   private isBroadcasting: boolean = false;
-  private lastLocalTimestamp: number = 0;
+  private lastRemoteTimestamp: number = 0;
   private onStateReceivedCallback: ((data: SyncPayload) => void) | null = null;
   private onStatusChangeCallback: ((status: SaveStatus) => void) | null = null;
-  private pollIntervalId: any = null;
+  private pollIntervalId: number | null = null;
   private activeWorkspaceId: string = 'rc_ws_main';
 
   constructor() {
@@ -47,8 +47,9 @@ class RealtimeSyncEngine {
       this.broadcastChannel = new BroadcastChannel('rc_proyectos_realtime_channel');
       this.broadcastChannel.onmessage = (event) => {
         if (!this.isBroadcasting && event.data && this.onStateReceivedCallback) {
-          if (event.data.updatedAt > this.lastLocalTimestamp) {
-            this.lastLocalTimestamp = event.data.updatedAt;
+          const remoteTs = Number(event.data.updatedAt || 0);
+          if (remoteTs > this.lastRemoteTimestamp) {
+            this.lastRemoteTimestamp = remoteTs;
             this.onStateReceivedCallback(event.data);
           }
         }
@@ -66,6 +67,12 @@ class RealtimeSyncEngine {
     return this.activeWorkspaceId;
   }
 
+  public setLastRemoteTimestamp(ts: number) {
+    if (ts > this.lastRemoteTimestamp) {
+      this.lastRemoteTimestamp = ts;
+    }
+  }
+
   public onStatusChange(callback: (status: SaveStatus) => void) {
     this.onStatusChangeCallback = callback;
   }
@@ -76,24 +83,29 @@ class RealtimeSyncEngine {
     }
   }
 
-  // Subscribe to Cloud & Local real-time changes
+  // Subscribe to Cloud & Local real-time changes with proper interval cleanup
   public subscribe(onStateReceived: (data: SyncPayload) => void): () => void {
     this.onStateReceivedCallback = onStateReceived;
+    void this.fetchFromCloud();
 
-    if (typeof window !== 'undefined' && !this.pollIntervalId) {
-      this.pollIntervalId = setInterval(() => {
+    if (!this.pollIntervalId && typeof window !== 'undefined') {
+      this.pollIntervalId = window.setInterval(() => {
         if (!this.isBroadcasting) {
-          this.fetchFromCloud();
+          void this.fetchFromCloud();
         }
       }, 2000);
     }
 
     return () => {
       this.onStateReceivedCallback = null;
+      if (this.pollIntervalId) {
+        window.clearInterval(this.pollIntervalId);
+        this.pollIntervalId = null;
+      }
     };
   }
 
-  // Direct Anti-Cache Fetch directly targeting workspaceId API Route
+  // Direct Anti-Cache Fetch targeting workspaceId API Route
   public async fetchFromCloud(): Promise<SyncPayload | null> {
     const headers = {
       'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
@@ -107,10 +119,15 @@ class RealtimeSyncEngine {
 
       if (res && res.status === 200) {
         const data = await res.json();
-        if (data && Array.isArray(data.projects) && !data.notFound) {
+        // A notFound response MUST NEVER erase a workspace that has already been hydrated
+        if (data && data.notFound) {
+          return null;
+        }
+
+        if (data && Array.isArray(data.projects)) {
           const remoteTs = Number(data.updatedAt || 0);
-          if (remoteTs > this.lastLocalTimestamp) {
-            this.lastLocalTimestamp = remoteTs;
+          if (remoteTs > this.lastRemoteTimestamp) {
+            this.lastRemoteTimestamp = remoteTs;
             if (this.onStateReceivedCallback && !this.isBroadcasting) {
               this.onStateReceivedCallback(data);
             }
@@ -127,14 +144,13 @@ class RealtimeSyncEngine {
   // Explicit Save to Cloud: NO FALSE POSITIVES, DOES NOT RETURN TRUE IF SKIPPED BY ISBROADCASTING
   public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>): Promise<boolean> {
     if (this.isBroadcasting) {
-      // Do not lie with true if skipped
       return false;
     }
     this.isBroadcasting = true;
     this.setSaveStatus('saving');
-    
+
     const now = Date.now();
-    this.lastLocalTimestamp = now;
+    this.lastRemoteTimestamp = now;
 
     const payload: SyncPayload = {
       ...stateObj,
@@ -150,7 +166,7 @@ class RealtimeSyncEngine {
         this.broadcastChannel.postMessage(payload);
       }
 
-      // 2. Primary Server Write: Next.js API Route (/api/workspace/[id])
+      // 2. Primary Server Write: Persistent API Route (/api/workspace/[id])
       const apiUrl = getNativeApiUrl(this.activeWorkspaceId);
       const apiRes = await fetch(apiUrl, {
         method: 'PUT',
