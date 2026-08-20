@@ -3,12 +3,18 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const noCacheHeaders = {
-  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-  'Pragma': 'no-cache',
-  'Expires': '0',
-  'Surrogate-Control': 'no-store'
-};
+function getBuildHeaders() {
+  const commit = process.env.VERCEL_GIT_COMMIT_SHA || 'local-dev';
+  const deploymentId = process.env.VERCEL_DEPLOYMENT_ID || 'local-dev';
+  return {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store',
+    'X-Commit-SHA': commit,
+    'X-Deployment-Id': deploymentId
+  };
+}
 
 function getUpstashConfig() {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
@@ -26,14 +32,16 @@ export async function GET(
 ) {
   const workspaceId = params.id || 'rc_ws_main';
   const { url, token } = getUpstashConfig();
+  const responseHeaders = getBuildHeaders();
 
   if (!url || !token) {
     return NextResponse.json(
       {
-        error: 'Error de configuración: Se requiere UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN en Vercel Production.',
-        workspaceId
+        error: 'Error de configuración en producción: Faltan las variables de entorno UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN (o KV_REST_API_URL y KV_REST_API_TOKEN) en Vercel Production.',
+        workspaceId,
+        notFound: false
       },
-      { status: 503, headers: noCacheHeaders }
+      { status: 503, headers: responseHeaders }
     );
   }
 
@@ -51,7 +59,7 @@ export async function GET(
     if (!res || !res.ok) {
       return NextResponse.json(
         { error: 'Servicio de base de datos persistente no disponible.', workspaceId },
-        { status: 503, headers: noCacheHeaders }
+        { status: 503, headers: responseHeaders }
       );
     }
 
@@ -75,7 +83,7 @@ export async function GET(
             workspaceId,
             updatedAt
           },
-          { status: 200, headers: noCacheHeaders }
+          { status: 200, headers: responseHeaders }
         );
       }
     }
@@ -83,13 +91,13 @@ export async function GET(
     // Key does not exist in persistent Upstash Redis store
     return NextResponse.json(
       { workspaceId, notFound: true },
-      { status: 200, headers: noCacheHeaders }
+      { status: 200, headers: responseHeaders }
     );
 
   } catch (err: any) {
     return NextResponse.json(
       { error: 'Error al consultar la base de datos persistente.', details: err.message },
-      { status: 503, headers: noCacheHeaders }
+      { status: 503, headers: responseHeaders }
     );
   }
 }
@@ -100,14 +108,15 @@ export async function PUT(
 ) {
   const workspaceId = params.id || 'rc_ws_main';
   const { url, token } = getUpstashConfig();
+  const responseHeaders = getBuildHeaders();
 
   if (!url || !token) {
     return NextResponse.json(
       {
-        error: 'Error de configuración: Se requiere UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN en Vercel Production.',
+        error: 'Error de configuración en producción: Faltan las variables de entorno UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN (o KV_REST_API_URL y KV_REST_API_TOKEN) en Vercel Production.',
         workspaceId
       },
-      { status: 503, headers: noCacheHeaders }
+      { status: 503, headers: responseHeaders }
     );
   }
 
@@ -117,7 +126,7 @@ export async function PUT(
     if (!payload || payload.workspaceId !== workspaceId || !Array.isArray(payload.projects)) {
       return NextResponse.json(
         { error: 'Payload inválido: workspaceId desalineado o projects no es un arreglo.' },
-        { status: 400, headers: noCacheHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -172,19 +181,19 @@ export async function PUT(
     if (!setRes || !setRes.ok) {
       return NextResponse.json(
         { error: 'Fallo al ejecutar el upsert en Upstash Redis.' },
-        { status: 503, headers: noCacheHeaders }
+        { status: 503, headers: responseHeaders }
       );
     }
 
     return NextResponse.json(
       fullState,
-      { status: 200, headers: noCacheHeaders }
+      { status: 200, headers: responseHeaders }
     );
 
   } catch (err: any) {
     return NextResponse.json(
       { error: 'Error guardando en la base de datos persistente.', details: err.message },
-      { status: 503, headers: noCacheHeaders }
+      { status: 503, headers: responseHeaders }
     );
   }
 }
