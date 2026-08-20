@@ -1,4 +1,4 @@
-// Universal Real-time Multi-Device Sync Engine (Persistent Database Backend & Strict Polling Cleanup)
+// Universal Real-time Multi-Device Sync Engine (Upstash Redis Backend & Strict Polling Cleanup)
 
 export interface SyncPayload {
   workspaceId: string;
@@ -141,7 +141,7 @@ class RealtimeSyncEngine {
     return null;
   }
 
-  // Explicit Save to Cloud: NO FALSE POSITIVES, DOES NOT RETURN TRUE IF SKIPPED BY ISBROADCASTING
+  // Explicit Save to Cloud: Strictly increasing timestamp & explicit projects array validation
   public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>): Promise<boolean> {
     if (this.isBroadcasting) {
       return false;
@@ -149,8 +149,7 @@ class RealtimeSyncEngine {
     this.isBroadcasting = true;
     this.setSaveStatus('saving');
 
-    const now = Date.now();
-    this.lastRemoteTimestamp = now;
+    const now = Math.max(Date.now(), this.lastRemoteTimestamp + 1);
 
     const payload: SyncPayload = {
       ...stateObj,
@@ -175,7 +174,12 @@ class RealtimeSyncEngine {
       }).catch(() => null);
 
       if (apiRes && (apiRes.status === 200 || apiRes.status === 201)) {
-        serverSaved = true;
+        const resData = await apiRes.json().catch(() => null);
+        if (resData && Array.isArray(resData.projects)) {
+          serverSaved = true;
+          const serverTs = Number(resData.updatedAt || now);
+          this.lastRemoteTimestamp = Math.max(this.lastRemoteTimestamp, serverTs);
+        }
       }
 
       if (serverSaved) {

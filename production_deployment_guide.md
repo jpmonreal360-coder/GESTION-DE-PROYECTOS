@@ -1,80 +1,55 @@
-# 🚀 Guía de Salida a Producción: PROYECTOS RC
+# Guía de Despliegue en Producción — PROYECTOS RC (Vercel & Cloud DB)
 
-Esta guía paso a paso detalla el procedimiento profesional para desplegar la plataforma **PROYECTOS RC** en servidores de producción con alta disponibilidad, optimización responsiva multi-dispositivo (iOS, Android, Tablet, Desktop) y base de datos relacional.
-
----
-
-## 📱 Verificación Responsiva Multi-Dispositivo
-
-- **Smartphones (iOS Safari & Android Chrome)**:
-  - Menú lateral tipo *Drawer* colapsable mediante botón hamburguesa (☰).
-  - Modales centrados con desplazamiento táctil.
-  - Tablero Kanban adaptable a 1 columna o vista en tabla deslizable.
-- **Tablets (iPad / Galaxy Tab)**:
-  - Cuadrículas adaptativas de 2 columnas para métricas y finanzas.
-- **Desktops & Laptops**:
-  - Vista completa de 4 columnas, atajo de teclado **⌘K / Ctrl+K** y *glassmorphism* de alta velocidad.
+Esta guía detalla los pasos requeridos para desplegar **PROYECTOS RC** en Vercel con persistencia real en la nube sin parpadeos ni almacenamiento en memoria volátil.
 
 ---
 
-## 🌐 Pasos para Publicar la Aplicación en Producción
+## 🗄️ Requerimiento Principal: Base de Datos Persistente (Upstash Redis / Vercel KV REST)
 
-### OPCIÓN 1: Publicación Inmediata con Netlify Drop o Vercel (Recomendada en 1 minuto)
+El backend de la aplicación (`src/app/api/workspace/[id]/route.ts`) es 100% stateless y consulta directamente un almacén persistente clave-valor compartido globalmente por todas las funciones Serverless de Vercel.
 
-Si deseas publicar la aplicación web nativa completa que funciona instantáneamente:
+### 🔑 Variables de Entorno Obligatorias en Vercel Production
 
-1. Abre tu navegador e ingresa a **[drop.netlify.com](https://drop.netlify.com)** o a tu consola de **[Vercel](https://vercel.com)**.
-2. Abre la carpeta del proyecto en tu computadora: `c:\Users\Edmundo\Desktop\GESTION DE PROYECTOS`.
-3. Arrastra y suelta la carpeta entera dentro de la pantalla de Netlify o Vercel.
-4. En menos de **10 segundos**, obtendrás un enlace público con SSL gratis, ejemplo: `https://proyectos-rc.netlify.app`.
+Debes configurar las siguientes variables en el panel de **Vercel Dashboard ➔ Settings ➔ Environment Variables**:
 
----
+| Variable | Descripción / Ejemplo |
+| :--- | :--- |
+| `UPSTASH_REDIS_REST_URL` | URL de la API REST de Upstash Redis (ej. `https://your-database.upstash.io`) |
+| `UPSTASH_REDIS_REST_TOKEN` | Token Bearer de la API REST de Upstash Redis |
+| `KV_REST_API_URL` | (Alias automático de Vercel KV) `https://your-database.upstash.io` |
+| `KV_REST_API_TOKEN` | (Alias automático de Vercel KV) `your_bearer_token` |
 
-### OPCIÓN 2: Publicación Completa en Vercel con Repositorio GitHub
-
-Para tener despliegues automáticos cada vez que hagas cambios:
-
-#### Paso A: Subir el Proyecto a GitHub
-1. Abre una terminal dentro de `c:\Users\Edmundo\Desktop\GESTION DE PROYECTOS`.
-2. Ejecuta los comandos:
-   ```bash
-   git init
-   git add .
-   git commit -m "Feat: PROYECTOS RC v1.0 Responsivo"
-   git branch -M main
-   git remote add origin https://github.com/TU_USUARIO/proyectos-rc.git
-   git push -u origin main
-   ```
-
-#### Paso B: Conectar en Vercel
-1. Ingresa a **[Vercel.com](https://vercel.com)** e inicia sesión con tu cuenta de GitHub.
-2. Haz clic en **"Add New Project"** e selecciona el repositorio `proyectos-rc`.
-3. En la sección **Build and Output Settings**:
-   - **Framework Preset**: Next.js (o Other si solo despliegas el index.html).
-   - **Build Command**: `npx prisma generate && next build` (para Next.js).
-4. Si usas base de datos en la nube (Supabase / Neon), agrega la variable de entorno `DATABASE_URL`.
-5. Haz clic en **"Deploy"**. En 1 minuto tendrás la aplicación desplegada en producción.
+> ⚠️ **IMPORTANTE:** Si cualquiera de estas variables falta en el entorno de producción, la API responderá con un código **HTTP 503 Service Unavailable** explícito, impidiendo servir datos de memoria o fallbacks de datos demo obsoletos.
 
 ---
 
-### OPCIÓN 3: Base de Datos Relacional PostgreSQL en la Nube (Supabase / Neon)
+## 🚀 Pasos de Despliegue en Vercel
 
-1. Ingresa a **[Supabase.com](https://supabase.com)** o **[Neon.tech](https://neon.tech)** y crea una cuenta gratuita.
-2. Crea una base de datos llamada `proyectos-rc-db`.
-3. Copia tu cadena de conexión PostgreSQL (`DATABASE_URL`).
-4. En el proyecto local, en `prisma/schema.prisma` cambia el proveedor a `postgresql`.
-5. Ejecuta en tu terminal:
-   ```bash
-   npx prisma db push
-   ```
+1. **Vincular Repositorio GitHub:**
+   - Conecta el repositorio `jpmonreal360-coder/GESTION-DE-PROYECTOS` a tu proyecto en Vercel.
+
+2. **Configurar Variables de Entorno:**
+   - Ve a **Settings ➔ Environment Variables** en Vercel.
+   - Agrega `UPSTASH_REDIS_REST_URL` y `UPSTASH_REDIS_REST_TOKEN` (o activa la integración **Storage ➔ Vercel KV**).
+
+3. **Re-desplegar (Redeploy):**
+   - Ve a la pestaña **Deployments**.
+   - Haz clic en `...` en el despliegue más reciente y selecciona **Redeploy** (desmarcando *"Use existing build cache"*).
 
 ---
 
-## 🔒 Configuración de Dominio Personalizado & SSL Gratis
+## 🧪 Verificación de Producción (12 Consultas Consecutivas GET)
 
-1. En tu panel de Vercel o Netlify, ve a **Settings > Domains**.
-2. Agrega tu dominio propio (ejemplo: `www.proyectosrc.com`).
-3. Apunta los registros CNAME o A en tu proveedor de dominio (GoDaddy, Namecheap, Cloudflare):
-   - **Registro A**: `@` -> `76.76.21.21`
-   - **Registro CNAME**: `www` -> `cname.vercel-dns.com`
-4. El certificado SSL (HTTPS) se activará automáticamente sin costo adicional.
+Ejecuta el siguiente comando contra tu endpoint desplegado:
+
+```bash
+for i in $(seq 1 12); do
+  curl -sS -H 'Cache-Control: no-store' https://gestion-de-proyectos-smoky.vercel.app/api/workspace/rc_ws_main
+  echo
+done
+```
+
+**Criterios de Aceptación:**
+- Las 12 respuestas devuelven **HTTP 200 OK** con exactamente el mismo `updatedAt` y el mismo payload.
+- Ninguna solicitud devuelve `notFound: true` mientras el workspace exista en la base de datos.
+- Las mutaciones (crear/eliminar proyecto) persisten tras recargar (F5) y entre sesiones independientes sin reaparición de elementos eliminados.

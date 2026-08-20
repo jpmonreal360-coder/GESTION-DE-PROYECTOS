@@ -27,6 +27,82 @@ interface WorkspaceState {
   projectCategories: string[];
 }
 
+// Module-level stable constants (prevents re-creation on every render)
+const DEFAULT_PROJECTS: Project[] = [
+  { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 450000, totalBudget: 450000, spent: 284500, spentBudget: 284500, color: '#007AFF', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
+  { id: 'PRJ-02', name: 'SaaS Dashboard v2', code: 'SAAS-02', budget: 350000, totalBudget: 350000, spent: 312000, spentBudget: 312000, color: '#AF52DE', category: 'Web App', startDate: '2026-07-15', endDate: '2026-10-15' },
+  { id: 'PRJ-03', name: 'Brand Identity 2026', code: 'BRAND-03', budget: 220000, totalBudget: 220000, spent: 148000, spentBudget: 148000, color: '#FF9500', category: 'Design', startDate: '2026-08-05', endDate: '2026-09-30' }
+];
+
+const DEFAULT_EXPENSES: Expense[] = [
+  { id: 'exp-101', type: 'INCOME', concept: 'Anticipo 50% Proyecto Rediseño iOS', amount: 225000, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-08-01', status: 'PAID' },
+  { id: 'exp-102', type: 'INCOME', concept: 'Cobro Hito 1 SaaS Dashboard', amount: 175000, category: 'Facturación / Cobro', projectId: 'PRJ-02', date: '2026-08-05', status: 'PAID' },
+  { id: 'exp-103', type: 'INCOME', concept: 'Pago Total Brand Identity 2026', amount: 220000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-08-08', status: 'PAID' },
+  { id: 'exp-1', type: 'EXPENSE', concept: 'Suscripción Figma Enterprise', amount: 28400, category: 'Software & Cloud', projectId: 'PRJ-01', date: '2026-08-15', status: 'PAID' },
+  { id: 'exp-2', type: 'EXPENSE', concept: 'Servidores AWS & Cloudflare CDN', amount: 64000, category: 'Infraestructura & Server', projectId: 'PRJ-02', date: '2026-08-14', status: 'PAID' },
+  { id: 'exp-3', type: 'EXPENSE', concept: 'Tipografía Personalizada Font Lab', amount: 16450, category: 'Diseño UI/UX', projectId: 'PRJ-03', date: '2026-08-10', status: 'PAID' }
+];
+
+const DEFAULT_TASKS: Task[] = [
+  { id: 'tsk-1', title: 'Diseñar componentes esmerilados (Glassmorphism)', status: 'IN_PROGRESS', priority: 'HIGH', projectId: 'PRJ-01', assigneeName: 'Edmundo A.', assignee: 'Edmundo A.', dueDate: '2026-08-25', tags: ['UI/UX', 'Apple'] },
+  { id: 'tsk-2', title: 'Implementar atajos de teclado Cmd+K para Spotlight', status: 'COMPLETED', priority: 'MEDIUM', projectId: 'PRJ-02', assigneeName: 'Sofia R.', assignee: 'Sofia R.', dueDate: '2026-08-18', tags: ['Frontend'] }
+];
+
+const DEFAULT_DOCUMENTS: Document[] = [
+  {
+    id: 'pdoc-1',
+    title: 'Contrato Marco de Desarrollo & NDA v1.2',
+    format: 'pdf',
+    docType: 'PDF',
+    typeLabel: 'Contrato PDF',
+    projectId: 'PRJ-01',
+    date: '2026-08-01',
+    updatedAt: '2026-08-01',
+    fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    description: 'Documento legal en formato PDF firmado con acuerdo de confidencialidad.'
+  },
+  {
+    id: 'pdoc-2',
+    title: 'Foto / Captura de Maqueta UI Aprobada',
+    format: 'image',
+    docType: 'IMAGE',
+    typeLabel: 'Foto / Imagen',
+    projectId: 'PRJ-01',
+    date: '2026-08-12',
+    updatedAt: '2026-08-12',
+    previewUrl: 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=800&auto=format&fit=crop&q=80',
+    fileUrl: 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=1600&auto=format&fit=crop&q=80',
+    description: 'Fotografía / Render en alta resolución del diseño UI/UX validado por el cliente.'
+  }
+];
+
+const DEFAULT_WIKI_DOCS: WikiDoc[] = [
+  {
+    id: 'doc-1',
+    title: 'Guía de Estilo UI/UX - Apple Human Interface Guidelines',
+    projectId: 'PRJ-01',
+    updatedAt: '2026-08-19',
+    content: '### Principios de Diseño\n1. Translucidez y Vidrio Esmerilado\n2. Jerarquía Tipográfica'
+  }
+];
+
+const DEFAULT_CATEGORIES = [
+  'Facturación / Cobro',
+  'Software & Cloud',
+  'Diseño UI/UX',
+  'Desarrollo Frontend/Backend',
+  'Infraestructura & Server',
+  'Marketing & Ads'
+];
+
+const DEFAULT_PROJECT_CATEGORIES = [
+  'Mobile App',
+  'Web App',
+  'Design',
+  'Infrastructure',
+  'Marketing'
+];
+
 export default function Home() {
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [activeProjectFilter, setActiveProjectFilter] = useState<string>('all');
@@ -56,92 +132,16 @@ export default function Home() {
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [workspaceId, setWorkspaceId] = useState<string>('rc_ws_main');
 
-  // Default Mock Projects
-  const defaultProjects: Project[] = [
-    { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 450000, totalBudget: 450000, spent: 284500, spentBudget: 284500, color: '#007AFF', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
-    { id: 'PRJ-02', name: 'SaaS Dashboard v2', code: 'SAAS-02', budget: 350000, totalBudget: 350000, spent: 312000, spentBudget: 312000, color: '#AF52DE', category: 'Web App', startDate: '2026-07-15', endDate: '2026-10-15' },
-    { id: 'PRJ-03', name: 'Brand Identity 2026', code: 'BRAND-03', budget: 220000, totalBudget: 220000, spent: 148000, spentBudget: 148000, color: '#FF9500', category: 'Design', startDate: '2026-08-05', endDate: '2026-09-30' }
-  ];
-
-  // Default Expenses State
-  const defaultExpenses: Expense[] = [
-    { id: 'exp-101', type: 'INCOME', concept: 'Anticipo 50% Proyecto Rediseño iOS', amount: 225000, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-08-01', status: 'PAID' },
-    { id: 'exp-102', type: 'INCOME', concept: 'Cobro Hito 1 SaaS Dashboard', amount: 175000, category: 'Facturación / Cobro', projectId: 'PRJ-02', date: '2026-08-05', status: 'PAID' },
-    { id: 'exp-103', type: 'INCOME', concept: 'Pago Total Brand Identity 2026', amount: 220000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-08-08', status: 'PAID' },
-    { id: 'exp-1', type: 'EXPENSE', concept: 'Suscripción Figma Enterprise', amount: 28400, category: 'Software & Cloud', projectId: 'PRJ-01', date: '2026-08-15', status: 'PAID' },
-    { id: 'exp-2', type: 'EXPENSE', concept: 'Servidores AWS & Cloudflare CDN', amount: 64000, category: 'Infraestructura & Server', projectId: 'PRJ-02', date: '2026-08-14', status: 'PAID' },
-    { id: 'exp-3', type: 'EXPENSE', concept: 'Tipografía Personalizada Font Lab', amount: 16450, category: 'Diseño UI/UX', projectId: 'PRJ-03', date: '2026-08-10', status: 'PAID' }
-  ];
-
-  // Default Tasks State
-  const defaultTasks: Task[] = [
-    { id: 'tsk-1', title: 'Diseñar componentes esmerilados (Glassmorphism)', status: 'IN_PROGRESS', priority: 'HIGH', projectId: 'PRJ-01', assigneeName: 'Edmundo A.', assignee: 'Edmundo A.', dueDate: '2026-08-25', tags: ['UI/UX', 'Apple'] },
-    { id: 'tsk-2', title: 'Implementar atajos de teclado Cmd+K para Spotlight', status: 'COMPLETED', priority: 'MEDIUM', projectId: 'PRJ-02', assigneeName: 'Sofia R.', assignee: 'Sofia R.', dueDate: '2026-08-18', tags: ['Frontend'] }
-  ];
-
-  // Default Documents State
-  const defaultDocuments: Document[] = [
-    {
-      id: 'pdoc-1',
-      title: 'Contrato Marco de Desarrollo & NDA v1.2',
-      format: 'pdf',
-      docType: 'PDF',
-      typeLabel: 'Contrato PDF',
-      projectId: 'PRJ-01',
-      date: '2026-08-01',
-      updatedAt: '2026-08-01',
-      fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-      description: 'Documento legal en formato PDF firmado con acuerdo de confidencialidad.'
-    },
-    {
-      id: 'pdoc-2',
-      title: 'Foto / Captura de Maqueta UI Aprobada',
-      format: 'image',
-      docType: 'IMAGE',
-      typeLabel: 'Foto / Imagen',
-      projectId: 'PRJ-01',
-      date: '2026-08-12',
-      updatedAt: '2026-08-12',
-      previewUrl: 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=800&auto=format&fit=crop&q=80',
-      fileUrl: 'https://images.unsplash.com/photo-1616469829941-c7200edec809?w=1600&auto=format&fit=crop&q=80',
-      description: 'Fotografía / Render en alta resolución del diseño UI/UX validado por el cliente.'
-    }
-  ];
-
-  // Default Wiki State
-  const defaultWikiDocs: WikiDoc[] = [
-    {
-      id: 'doc-1',
-      title: 'Guía de Estilo UI/UX - Apple Human Interface Guidelines',
-      projectId: 'PRJ-01',
-      updatedAt: '2026-08-19',
-      content: '### Principios de Diseño\n1. Translucidez y Vidrio Esmerilado\n2. Jerarquía Tipográfica'
-    }
-  ];
-
   // Single Unified Workspace State
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({
     isCustomized: false,
-    projects: defaultProjects,
-    expenses: defaultExpenses,
-    tasks: defaultTasks,
-    documents: defaultDocuments,
-    wikiDocs: defaultWikiDocs,
-    categories: [
-      'Facturación / Cobro',
-      'Software & Cloud',
-      'Diseño UI/UX',
-      'Desarrollo Frontend/Backend',
-      'Infraestructura & Server',
-      'Marketing & Ads'
-    ],
-    projectCategories: [
-      'Mobile App',
-      'Web App',
-      'Design',
-      'Infrastructure',
-      'Marketing'
-    ]
+    projects: DEFAULT_PROJECTS,
+    expenses: DEFAULT_EXPENSES,
+    tasks: DEFAULT_TASKS,
+    documents: DEFAULT_DOCUMENTS,
+    wikiDocs: DEFAULT_WIKI_DOCS,
+    categories: DEFAULT_CATEGORIES,
+    projectCategories: DEFAULT_PROJECT_CATEGORIES
   });
 
   // Serialized Save Queue to prevent concurrent PUT requests
@@ -153,7 +153,7 @@ export default function Home() {
     return saveQueue.current;
   }, []);
 
-  // Function to apply workspace state without triggering an auto-save
+  // Stable function to apply workspace state without triggering an auto-save
   const applyWorkspaceState = useCallback((data: any) => {
     skipNextCloudSave.current = true;
     setWorkspaceState({
@@ -163,27 +163,15 @@ export default function Home() {
       tasks: Array.isArray(data.tasks) ? data.tasks : [],
       documents: Array.isArray(data.documents) ? data.documents : [],
       wikiDocs: Array.isArray(data.wikiDocs) ? data.wikiDocs : [],
-      categories: Array.isArray(data.categories) ? data.categories : [
-        'Facturación / Cobro',
-        'Software & Cloud',
-        'Diseño UI/UX',
-        'Desarrollo Frontend/Backend',
-        'Infraestructura & Server',
-        'Marketing & Ads'
-      ],
-      projectCategories: Array.isArray(data.projectCategories) ? data.projectCategories : [
-        'Mobile App',
-        'Web App',
-        'Design',
-        'Infrastructure',
-        'Marketing'
-      ]
+      categories: Array.isArray(data.categories) ? data.categories : DEFAULT_CATEGORIES,
+      projectCategories: Array.isArray(data.projectCategories) ? data.projectCategories : DEFAULT_PROJECT_CATEGORIES
     });
     const ts = Number(data.updatedAt ?? 0);
     lastRemoteTimestamp.current = ts;
     realtimeSync.setLastRemoteTimestamp(ts);
   }, []);
 
+  // Stable fallback function with 0 dependencies outside scope
   const loadLocalFallbackOrEmptyState = useCallback(() => {
     skipNextCloudSave.current = true;
     const savedCustomized = localStorage.getItem('rc_is_customized');
@@ -198,54 +186,28 @@ export default function Home() {
 
       setWorkspaceState({
         isCustomized: true,
-        projects: savedProjects ? JSON.parse(savedProjects) : defaultProjects,
-        expenses: savedExpenses ? JSON.parse(savedExpenses) : defaultExpenses,
-        tasks: savedTasks ? JSON.parse(savedTasks) : defaultTasks,
-        documents: savedDocs ? JSON.parse(savedDocs) : defaultDocuments,
-        wikiDocs: savedWiki ? JSON.parse(savedWiki) : defaultWikiDocs,
-        categories: savedCategories ? JSON.parse(savedCategories) : [
-          'Facturación / Cobro',
-          'Software & Cloud',
-          'Diseño UI/UX',
-          'Desarrollo Frontend/Backend',
-          'Infraestructura & Server',
-          'Marketing & Ads'
-        ],
-        projectCategories: savedPrjCat ? JSON.parse(savedPrjCat) : [
-          'Mobile App',
-          'Web App',
-          'Design',
-          'Infrastructure',
-          'Marketing'
-        ]
+        projects: savedProjects ? JSON.parse(savedProjects) : DEFAULT_PROJECTS,
+        expenses: savedExpenses ? JSON.parse(savedExpenses) : DEFAULT_EXPENSES,
+        tasks: savedTasks ? JSON.parse(savedTasks) : DEFAULT_TASKS,
+        documents: savedDocs ? JSON.parse(savedDocs) : DEFAULT_DOCUMENTS,
+        wikiDocs: savedWiki ? JSON.parse(savedWiki) : DEFAULT_WIKI_DOCS,
+        categories: savedCategories ? JSON.parse(savedCategories) : DEFAULT_CATEGORIES,
+        projectCategories: savedPrjCat ? JSON.parse(savedPrjCat) : DEFAULT_PROJECT_CATEGORIES
       });
     } else {
       // Do NOT auto-publish seed data
       setWorkspaceState({
         isCustomized: false,
-        projects: defaultProjects,
-        expenses: defaultExpenses,
-        tasks: defaultTasks,
-        documents: defaultDocuments,
-        wikiDocs: defaultWikiDocs,
-        categories: [
-          'Facturación / Cobro',
-          'Software & Cloud',
-          'Diseño UI/UX',
-          'Desarrollo Frontend/Backend',
-          'Infraestructura & Server',
-          'Marketing & Ads'
-        ],
-        projectCategories: [
-          'Mobile App',
-          'Web App',
-          'Design',
-          'Infrastructure',
-          'Marketing'
-        ]
+        projects: DEFAULT_PROJECTS,
+        expenses: DEFAULT_EXPENSES,
+        tasks: DEFAULT_TASKS,
+        documents: DEFAULT_DOCUMENTS,
+        wikiDocs: DEFAULT_WIKI_DOCS,
+        categories: DEFAULT_CATEGORIES,
+        projectCategories: DEFAULT_PROJECT_CATEGORIES
       });
     }
-  }, [defaultProjects, defaultExpenses, defaultTasks, defaultDocuments, defaultWikiDocs]);
+  }, []);
 
   // Subscribe to save status updates
   useEffect(() => {
@@ -254,7 +216,7 @@ export default function Home() {
     });
   }, []);
 
-  // Single asynchronous bootstrap useEffect on mount
+  // Single asynchronous bootstrap useEffect on mount (Runs EXACTLY ONCE per mount)
   useEffect(() => {
     let cancelled = false;
 
