@@ -29,6 +29,10 @@ interface WorkspaceState {
   batchTables: BatchTable[];
 }
 
+interface HomeProps {
+  initialWorkspaceId?: string;
+}
+
 // Module-level stable constants
 const DEFAULT_PROJECTS: Project[] = [
   { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 450000, totalBudget: 450000, spent: 284500, spentBudget: 284500, color: '#007AFF', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
@@ -110,7 +114,7 @@ const DEFAULT_PROJECT_CATEGORIES = [
   'Marketing'
 ];
 
-export default function Home() {
+export default function Home({ initialWorkspaceId }: HomeProps = {}) {
   const [currentView, setCurrentView] = useState<string>('expenses');
   const [activeProjectFilter, setActiveProjectFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -142,7 +146,7 @@ export default function Home() {
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareableUrl, setShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [workspaceId, setWorkspaceId] = useState<string>('rc_ws_main');
+  const [workspaceId, setWorkspaceId] = useState<string>(initialWorkspaceId || 'rc_ws_main');
 
   // Single Unified Workspace State
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({
@@ -237,14 +241,18 @@ export default function Home() {
     let cancelled = false;
 
     async function bootstrap() {
-      let wsId = 'rc_ws_main';
+      let wsId = initialWorkspaceId || 'rc_ws_main';
       let stateFromUrl: any = null;
 
       if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
         const hash = window.location.hash;
         const search = window.location.search;
 
-        if (hash.includes('state=')) {
+        if (path.startsWith('/w/')) {
+          const slug = path.split('/w/')[1].split('/')[0];
+          if (slug) wsId = slug;
+        } else if (hash.includes('state=')) {
           try {
             const encoded = hash.split('state=')[1].split('&')[0];
             stateFromUrl = urlSafeDecodeStr(encoded);
@@ -286,7 +294,7 @@ export default function Home() {
 
     void bootstrap();
     return () => { cancelled = true; };
-  }, [applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
+  }, [initialWorkspaceId, applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
 
   // Centralized Automatic Persistence Effect
   useEffect(() => {
@@ -386,12 +394,22 @@ export default function Home() {
     }
   }, [workspaceState, queueSave]);
 
-  // Generate Shared Link with Full Base64 URL-Safe State (#state=encodedData)
+  // Generate Short Shared Link (/w/[shortSlug]) with Upstash Redis Persisted State
   const handleShareLink = async () => {
     try {
-      const baseUrl = window.location.origin + window.location.pathname;
+      const baseUrl = window.location.origin;
+      // Generate a short 6-character alphanumeric slug
+      const shortSlug = workspaceId !== 'rc_ws_main' && workspaceId.startsWith('w_')
+        ? workspaceId
+        : 'w_' + Math.random().toString(36).substring(2, 8);
+
+      const shortUrl = `${baseUrl}/w/${shortSlug}`;
+
+      setWorkspaceId(shortSlug);
+      realtimeSync.setWorkspaceId(shortSlug);
+
       const stateObj = {
-        workspaceId,
+        workspaceId: shortSlug,
         isCustomized: true,
         projects: workspaceState.projects,
         expenses: workspaceState.expenses,
@@ -404,22 +422,19 @@ export default function Home() {
         updatedAt: Date.now()
       };
 
-      const encodedState = urlSafeEncodeObj(stateObj);
-      const fullUrl = `${baseUrl}#state=${encodedState}`;
-
-      setShareableUrl(fullUrl);
+      setShareableUrl(shortUrl);
       setIsCopied(false);
       setIsShareModalOpen(true);
 
       const isSaved = await queueSave(stateObj);
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(fullUrl);
+        await navigator.clipboard.writeText(shortUrl);
         setIsCopied(true);
         if (isSaved) {
-          triggerToast('📋 ¡Enlace copiado con estado completo y respaldado en la Nube!');
+          triggerToast(`📋 ¡URL Corta (/w/${shortSlug}) copiada y guardada en la Nube!`);
         } else {
-          triggerToast('📋 ¡Enlace copiado con estado completo codificado en la URL!');
+          triggerToast(`📋 ¡URL Corta (/w/${shortSlug}) copiada al portapapeles!`);
         }
       }
     } catch (err) {
@@ -431,10 +446,10 @@ export default function Home() {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(shareableUrl).then(() => {
         setIsCopied(true);
-        triggerToast('📋 ¡Enlace copiado al portapapeles!');
+        triggerToast('📋 ¡Enlace corto copiado al portapapeles!');
       });
     } else {
-      prompt('Copia este enlace compartible para enviar tus datos:', shareableUrl);
+      prompt('Copia este enlace corto para compartir tus datos:', shareableUrl);
     }
   };
 
@@ -912,7 +927,7 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold">Compartir Workspace</h3>
+              <h3 className="text-lg font-bold">Compartir Enlace Corto</h3>
               <button
                 onClick={() => setIsShareModalOpen(false)}
                 className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
@@ -921,7 +936,7 @@ export default function Home() {
               </button>
             </div>
             <p className="text-xs text-neutral-500">
-              Este enlace contiene el estado codificado de tu workspace. Cualquiera que lo abra verá el 100% de tus datos al instante.
+              Este enlace corto (/w/{workspaceId}) consulta tus datos en tiempo real desde la nube sin requerir URLs extensas.
             </p>
             <div className="flex gap-2">
               <input
