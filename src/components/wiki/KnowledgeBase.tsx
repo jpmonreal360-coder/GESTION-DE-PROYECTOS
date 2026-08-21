@@ -61,11 +61,11 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 min-w-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100 break-words">
             Base de Conocimientos Wiki
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -76,7 +76,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         {currentDoc && (
           <button
             onClick={handleSaveChanges}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white font-semibold text-xs shadow-md transition ${
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-white font-semibold text-xs shadow-md transition w-full sm:w-auto shrink-0 ${
               isSaved ? 'bg-emerald-600' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30'
             }`}
           >
@@ -86,9 +86,9 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 h-[calc(100vh-220px)]">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 min-h-[400px] min-w-0">
         {/* Document Tree Sidebar */}
-        <div className="p-4 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 flex flex-col gap-2 overflow-y-auto">
+        <div className="p-3.5 sm:p-4 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 flex flex-col gap-2 overflow-y-auto max-h-[220px] md:max-h-none min-w-0">
           <div className="flex items-center justify-between pb-2 border-b border-neutral-200/40 dark:border-neutral-800/40">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
               Documentos
@@ -117,14 +117,14 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         </div>
 
         {/* Editor Area */}
-        <div className="md:col-span-3 p-6 md:p-8 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 flex flex-col gap-4 overflow-y-auto">
+        <div className="md:col-span-3 p-4 sm:p-6 md:p-8 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 flex flex-col gap-4 overflow-y-auto min-w-0">
           {currentDoc ? (
             <>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="text-2xl font-bold bg-transparent outline-none text-neutral-900 dark:text-neutral-100 border-b border-neutral-200/40 dark:border-neutral-800/40 pb-2"
+                className="text-xl sm:text-2xl font-bold bg-transparent outline-none text-neutral-900 dark:text-neutral-100 border-b border-neutral-200/40 dark:border-neutral-800/40 pb-2 break-words"
                 placeholder="Título del documento..."
               />
               <p className="text-[11px] text-neutral-400">
@@ -133,12 +133,12 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="flex-1 w-full bg-transparent outline-none text-sm leading-relaxed text-neutral-800 dark:text-neutral-200 resize-none font-sans min-h-[300px]"
+                className="flex-1 w-full bg-transparent outline-none text-xs sm:text-sm leading-relaxed text-neutral-800 dark:text-neutral-200 resize-none font-sans min-h-[250px] sm:min-h-[300px]"
                 placeholder="Empieza a escribir la documentación..."
               />
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-neutral-400 text-xs">
+            <div className="flex flex-col items-center justify-center h-full text-neutral-400 text-xs py-12">
               <FileText className="w-8 h-8 mb-2" />
               <span>Selecciona un documento para editar</span>
             </div>

@@ -82,14 +82,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[480px] max-w-[95vw] p-6 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 shadow-2xl space-y-5"
+        className="w-[calc(100vw-1.5rem)] max-w-md max-h-[85dvh] overflow-y-auto p-4 sm:p-6 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 shadow-2xl space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold">
+          <h3 className="text-base sm:text-lg font-bold">
             {projectToEdit ? 'Editar Proyecto & Categoría' : 'Nuevo Proyecto'}
           </h3>
           <button
@@ -115,7 +115,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
                 Código / ID
@@ -131,7 +131,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </div>
             <div>
               <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                Presupuesto (Ej. 16450)
+                Presupuesto
               </label>
               <input
                 type="number"
@@ -145,10 +145,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                Fecha Inicio (Editable)
+                Fecha Inicio
               </label>
               <input
                 type="date"
@@ -159,7 +159,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </div>
             <div>
               <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                Fecha Término (Editable)
+                Fecha Término
               </label>
               <input
                 type="date"
@@ -172,7 +172,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
           <div>
             <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-              Categoría del Proyecto (Editable / Agregar)
+              Categoría del Proyecto
             </label>
             <select
               value={isCustomCategory ? 'CUSTOM' : category}
@@ -198,7 +198,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           {isCustomCategory && (
             <div>
               <label className="block font-semibold uppercase tracking-wider text-purple-500 mb-1">
-                Nombre de la Nueva Categoría de Proyecto
+                Nombre de la Nueva Categoría
               </label>
               <input
                 type="text"

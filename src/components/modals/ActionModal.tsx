@@ -202,14 +202,14 @@ export const ActionModal: React.FC<ActionModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[520px] max-w-[95vw] max-h-[90vh] overflow-y-auto p-6 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 shadow-2xl space-y-5"
+        className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 shadow-2xl space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold">
+          <h3 className="text-base sm:text-lg font-bold">
             {editItem ? 'Editar Registro' : 'Nuevo Registro'}
           </h3>
           <button
@@ -254,7 +254,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           {/* Document Specific Fields */}
           {formType === 'doc' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
                     Formato
@@ -272,7 +272,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                    Fecha del Documento (Editable)
+                    Fecha del Documento
                   </label>
                   <input
                     type="date"
@@ -287,7 +287,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                 <div className="paste-dropzone border-2 border-dashed border-blue-500/50 bg-blue-500/5 p-4 rounded-xl text-center space-y-1">
                   <Clipboard className="w-6 h-6 text-purple-500 mx-auto" />
                   <p className="font-semibold text-neutral-800 dark:text-neutral-200">
-                    {pastedDataUrl ? '✅ Foto / Screenshot Pegado' : '📋 Presiona Ctrl+V para pegar una foto o captura'}
+                    {pastedDataUrl ? '✅ Foto / Screenshot Pegado' : '📋 Presiona Ctrl+V para pegar una foto'}
                   </p>
                   <p className="text-[11px] text-neutral-400">o copia cualquier imagen al portapapeles y pégala directamente</p>
                 </div>
@@ -316,10 +316,10 @@ export const ActionModal: React.FC<ActionModalProps> = ({
             </div>
           )}
 
-          {/* Finance Specific Fields with Custom Categories */}
+          {/* Finance Specific Fields */}
           {(formType === 'income' || formType === 'expense') && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
                     Monto ($ MXN)
@@ -369,7 +369,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                     required
                     value={customCategoryInput}
                     onChange={(e) => setCustomCategoryInput(e.target.value)}
-                    placeholder="Ej. Viáticos, Licencias Especiales, Equipo Hardware..."
+                    placeholder="Ej. Viáticos, Licencias Especiales..."
                     className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-purple-500 text-neutral-900 dark:text-neutral-100 outline-none"
                   />
                 </div>
@@ -377,7 +377,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
 
               <div>
                 <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Fecha de la Transacción (Editable)
+                  Fecha de la Transacción
                 </label>
                 <input
                   type="date"
@@ -392,7 +392,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           {/* Task Specific Fields */}
           {formType === 'task' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
                     Responsable Asignado
@@ -402,10 +402,10 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                     onChange={(e) => setAssignee(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
                   >
-                    <option value="Edmundo A.">👤 Edmundo A. (Lead Architect)</option>
-                    <option value="Sofia R.">👤 Sofia R. (Frontend Dev)</option>
-                    <option value="Carlos M.">👤 Carlos M. (Backend Lead)</option>
-                    <option value="Lucia P.">👤 Lucia P. (UI/UX Designer)</option>
+                    <option value="Edmundo A.">👤 Edmundo A.</option>
+                    <option value="Sofia R.">👤 Sofia R.</option>
+                    <option value="Carlos M.">👤 Carlos M.</option>
+                    <option value="Lucia P.">👤 Lucia P.</option>
                   </select>
                 </div>
                 <div>
@@ -426,7 +426,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
               </div>
               <div>
                 <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Fecha Límite de la Tarea (Editable)
+                  Fecha Límite de la Tarea
                 </label>
                 <input
                   type="date"

@@ -234,7 +234,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-[#16161a] border border-neutral-200 dark:border-neutral-800 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white dark:bg-[#16161a] border border-neutral-200 dark:border-neutral-800 rounded-3xl w-[calc(100vw-1.5rem)] max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[85dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}

@@ -120,6 +120,9 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
+  // Mobile Drawer State
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
   // Control state and refs for strict hydration
   const [hydrated, setHydrated] = useState<boolean>(false);
   const skipNextCloudSave = useRef<boolean>(true);
@@ -814,8 +817,16 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F2F2F7] dark:bg-[#0A0A0C] text-[#1C1C1E] dark:text-[#F2F2F7]">
-      {/* Sidebar Navigation */}
+    <div className="flex min-h-[100dvh] w-full overflow-x-hidden bg-[#F2F2F7] dark:bg-[#0A0A0C] text-[#1C1C1E] dark:text-[#F2F2F7] relative">
+      {/* Mobile Drawer Backdrop */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Navigation Drawer */}
       <Sidebar
         currentView={currentView}
         setCurrentView={setCurrentView}
@@ -825,10 +836,12 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
         onAddProject={handleOpenNewProjectModal}
         onEditProject={handleOpenEditProjectModal}
         onDeleteProject={handleDeleteProject}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
       />
 
-      {/* Main View Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Main View Area Container */}
+      <div className="min-w-0 flex-1 flex flex-col w-full min-h-[100dvh]">
         <Navbar
           projects={workspaceState.projects}
           activeProjectFilter={activeProjectFilter}
@@ -840,9 +853,10 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
           onShareLink={handleShareLink}
           onSaveToCloud={handleSaveToCloudManual}
           saveStatus={saveStatus}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
         />
 
-        <main className="flex-1 p-4 md:p-7 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-7">
           {currentView === 'dashboard' && (
             <OverviewDashboard
               projects={workspaceState.projects}
@@ -906,6 +920,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
           {currentView === 'wiki' && (
             <KnowledgeBase
               wikiDocs={workspaceState.wikiDocs}
+              documents={workspaceState.documents}
               activeProjectFilter={activeProjectFilter}
               onSaveDoc={handleSaveWikiDoc}
             />
@@ -923,15 +938,15 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
       {/* Share Link Modal Dialog */}
       {isShareModalOpen && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4"
           onClick={() => setIsShareModalOpen(false)}
         >
           <div
-            className="bg-white dark:bg-[#1C1C1E] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4"
+            className="bg-white dark:bg-[#1C1C1E] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 w-[calc(100vw-1.5rem)] max-w-md shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold">Compartir Enlace Corto</h3>
+              <h3 className="text-base sm:text-lg font-bold">Compartir Enlace Corto</h3>
               <button
                 onClick={() => setIsShareModalOpen(false)}
                 className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
@@ -947,7 +962,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
                 type="text"
                 readOnly
                 value={shareableUrl}
-                className="flex-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-xs font-mono select-all outline-none"
+                className="flex-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-xs font-mono select-all outline-none min-w-0"
               />
               <button
                 onClick={copyShareableUrl}

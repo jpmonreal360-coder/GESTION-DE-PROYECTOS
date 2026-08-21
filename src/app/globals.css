@@ -69,6 +69,19 @@
   --shadow-spotlight: 0 30px 80px rgba(0, 0, 0, 0.7);
 }
 
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 767px) {
+  html, body {
+    width: 100vw;
+    overflow-x: hidden;
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', sans-serif;
   background-color: var(--bg-app);
@@ -76,7 +89,6 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
 }
 
 /* Glassmorphism Classes */

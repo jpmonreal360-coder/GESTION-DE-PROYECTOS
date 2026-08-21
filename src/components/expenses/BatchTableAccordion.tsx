@@ -29,21 +29,28 @@ export function BatchTableAccordion({
   onEditExpense,
   onDeleteExpense,
 }: BatchTableAccordionProps) {
-  // Filter tables matching active mode
-  const modeTables = tables.filter(t => t.mode === activeMode);
+  // Filter tables matching active mode & project filter
+  const modeTables = tables.filter(t => {
+    const matchesMode = t.mode === activeMode;
+    const matchesProject = activeProjectFilter === 'all'
+      || !t.projectId
+      || t.projectId === activeProjectFilter
+      || expenses.some(e => e.tableId === t.id && e.projectId === activeProjectFilter);
+    return matchesMode && matchesProject;
+  });
 
   // Helper to get project details
   const getProject = (projectId: string) => projects.find(p => p.id === projectId);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0 w-full">
       {modeTables.length === 0 ? (
-        <div className="p-8 text-center rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/40">
-          <Layers className="w-10 h-10 text-neutral-400 mx-auto mb-3 opacity-60" />
-          <h4 className="text-sm font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+        <div className="p-6 sm:p-8 text-center rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/40 min-w-0">
+          <Layers className="w-9 h-9 sm:w-10 sm:h-10 text-neutral-400 mx-auto mb-3 opacity-60" />
+          <h4 className="text-xs sm:text-sm font-bold text-neutral-700 dark:text-neutral-300 mb-1">
             No hay tablas creadas para {activeMode === 'income' ? 'Ingresos' : 'Gastos'}
           </h4>
-          <p className="text-xs text-neutral-500 mb-4">
+          <p className="text-[11px] sm:text-xs text-neutral-500 mb-4 max-w-sm mx-auto">
             Crea tu primera tabla por período (ej. "Ingresos Julio 2026") para agrupar registros masivos.
           </p>
           <button
@@ -51,7 +58,7 @@ export function BatchTableAccordion({
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 transition inline-flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Crear Nueva Tabla / Período</span>
+            <span>+ Crear Nueva Tabla</span>
           </button>
         </div>
       ) : (
@@ -70,15 +77,15 @@ export function BatchTableAccordion({
           return (
             <div
               key={table.id}
-              className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white/70 dark:bg-[#121215]/70 backdrop-blur-md shadow-sm overflow-hidden transition-all duration-200"
+              className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white/70 dark:bg-[#121215]/70 backdrop-blur-md shadow-sm overflow-hidden transition-all duration-200 min-w-0"
             >
               {/* Accordion Header */}
               <div
                 onClick={() => onToggleCollapse(table.id)}
-                className="p-4 flex items-center justify-between gap-3 cursor-pointer hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40 transition select-none"
+                className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40 transition select-none min-w-0"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <button className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <button className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition shrink-0">
                     {isCollapsed ? (
                       <ChevronRight className="w-5 h-5" />
                     ) : (
@@ -86,7 +93,7 @@ export function BatchTableAccordion({
                     )}
                   </button>
 
-                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
                     {activeMode === 'income' ? (
                       <TrendingUp className="w-4 h-4 text-emerald-500" />
                     ) : (
@@ -94,30 +101,30 @@ export function BatchTableAccordion({
                     )}
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold truncate text-neutral-900 dark:text-neutral-100">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-bold truncate text-neutral-900 dark:text-neutral-100">
                         {table.name}
                       </h3>
                       <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0">
-                        {tableExpenses.length} registros
+                        {tableExpenses.length} reg.
                       </span>
                     </div>
-                    <p className="text-[11px] text-neutral-400 flex items-center gap-1.5 mt-0.5">
-                      <Calendar className="w-3 h-3" />
-                      <span>Creada el {table.createdAt}</span>
+                    <p className="text-[10px] sm:text-[11px] text-neutral-400 flex items-center gap-1.5 mt-0.5 truncate">
+                      <Calendar className="w-3 h-3 shrink-0" />
+                      <span className="truncate">Creada el {table.createdAt}</span>
                     </p>
                   </div>
                 </div>
 
                 {/* Right Side: Total Badge & Actions */}
-                <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <div className="text-right">
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-200/50 dark:border-neutral-800/50" onClick={(e) => e.stopPropagation()}>
+                  <div className="text-left sm:text-right">
                     <span className="text-[10px] font-semibold text-neutral-400 block uppercase tracking-wider">
                       Total Acumulado
                     </span>
                     <span
-                      className={`text-sm font-extrabold ${
+                      className={`text-xs sm:text-sm font-extrabold ${
                         activeMode === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                       }`}
                     >
@@ -125,35 +132,37 @@ export function BatchTableAccordion({
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => onFeedTable(table.id, activeMode)}
-                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
-                    title="Alimentar esta tabla con nuevas filas masivas"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">+ Alimentar tabla</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onFeedTable(table.id, activeMode)}
+                      className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
+                      title="Alimentar esta tabla con nuevas filas masivas"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden xs:inline sm:inline">+ Alimentar</span>
+                    </button>
 
-                  <button
-                    onClick={() => onDeleteTable(table.id)}
-                    className="p-1.5 rounded-xl text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
-                    title="Eliminar esta tabla"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    <button
+                      onClick={() => onDeleteTable(table.id)}
+                      className="p-1.5 rounded-xl text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition shrink-0"
+                      title="Eliminar esta tabla"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Accordion Content Grid (Collapsed / Expanded) */}
               {!isCollapsed && (
-                <div className="border-t border-neutral-200/60 dark:border-neutral-800/60 p-4 bg-neutral-50/50 dark:bg-black/20 animate-in fade-in duration-150">
+                <div className="border-t border-neutral-200/60 dark:border-neutral-800/60 p-3 sm:p-4 bg-neutral-50/50 dark:bg-black/20 animate-in fade-in duration-150 min-w-0">
                   {tableExpenses.length === 0 ? (
                     <div className="py-6 text-center text-xs text-neutral-400">
                       Esta tabla no contiene registros aún. Haz clic en <strong>"+ Alimentar tabla"</strong> para agregar entradas masivas.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+                      <table className="w-full text-left text-xs min-w-[620px]">
                         <thead>
                           <tr className="border-b border-neutral-200 dark:border-neutral-800 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
                             <th className="pb-2 pl-2">Concepto</th>

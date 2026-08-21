@@ -11,7 +11,8 @@ import {
   Folder, 
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import { Project } from '@/types';
 
@@ -24,6 +25,8 @@ interface SidebarProps {
   onAddProject?: () => void;
   onEditProject?: (project: Project) => void;
   onDeleteProject?: (id: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,7 +41,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ],
   onAddProject,
   onEditProject,
-  onDeleteProject
+  onDeleteProject,
+  isOpen = false,
+  onClose
 }) => {
   const mainNav = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -48,18 +53,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'wiki', label: 'Base de Conocimiento', icon: BookOpen },
   ];
 
+  const handleViewSelect = (id: string) => {
+    setCurrentView(id);
+    if (onClose) onClose();
+  };
+
+  const handleProjectSelect = (id: string) => {
+    setActiveProjectFilter(id);
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className="w-64 min-w-[256px] flex flex-col justify-between p-5 glass-sidebar border-r border-neutral-200/50 dark:border-neutral-800/50 backdrop-blur-3xl z-30">
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] transition-transform duration-200 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      } md:relative md:translate-x-0 md:w-64 md:min-w-[256px] flex flex-col justify-between p-5 bg-white/95 dark:bg-[#121215]/95 backdrop-blur-3xl border-r border-neutral-200/50 dark:border-neutral-800/50 shadow-2xl md:shadow-none overflow-y-auto shrink-0`}
+    >
       <div>
         {/* Sidebar Header */}
-        <div className="flex items-center gap-3 px-3 py-2 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md shadow-blue-500/30">
-            RC
+        <div className="flex items-center justify-between px-3 py-2 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md shadow-blue-500/30">
+              RC
+            </div>
+            <div>
+              <h1 className="text-sm font-bold tracking-tight">PROYECTOS RC</h1>
+              <p className="text-[10px] text-neutral-400">Workspace Studio Pro</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-tight">PROYECTOS RC</h1>
-            <p className="text-[10px] text-neutral-400">Workspace Studio Pro</p>
-          </div>
+
+          {/* Close button for mobile drawer */}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 md:hidden transition"
+            aria-label="Cerrar menú"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* General Navigation */}
@@ -75,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <li key={item.id}>
                     <button
-                      onClick={() => setCurrentView(item.id)}
+                      onClick={() => handleViewSelect(item.id)}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition ${
                         isActive
                           ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
@@ -99,7 +129,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
               {onAddProject && (
                 <button
-                  onClick={onAddProject}
+                  onClick={() => {
+                    onAddProject();
+                    if (onClose) onClose();
+                  }}
                   className="action-btn-sm"
                   title="Nuevo Proyecto"
                 >
@@ -111,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <ul className="space-y-1">
               <li>
                 <button
-                  onClick={() => setActiveProjectFilter('all')}
+                  onClick={() => handleProjectSelect('all')}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition ${
                     activeProjectFilter === 'all'
                       ? 'bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400'
@@ -128,7 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <li key={p.id} className="group flex items-center justify-between">
                     <button
-                      onClick={() => setActiveProjectFilter(p.id)}
+                      onClick={() => handleProjectSelect(p.id)}
                       className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-left transition truncate ${
                         isActive
                           ? 'bg-neutral-200 dark:bg-neutral-800 text-purple-600 dark:text-purple-400'
@@ -139,12 +172,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span className="truncate">{p.name}</span>
                     </button>
 
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 pr-1 transition">
+                    <div className="opacity-80 md:opacity-0 group-hover:opacity-100 flex items-center gap-1 pr-1 transition">
                       {onEditProject && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onEditProject(p);
+                            if (onClose) onClose();
                           }}
                           className="action-btn-sm"
                           title="Editar Proyecto"
