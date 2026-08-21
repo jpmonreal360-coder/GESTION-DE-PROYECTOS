@@ -9,20 +9,27 @@ interface ProjectModalProps {
   onClose: () => void;
   projectToEdit?: Project | null;
   projectCategories?: string[];
-  onSave: (projectData: Partial<Project>) => void;
+  existingCategories?: string[];
+  onSave?: (projectData: Partial<Project>) => void;
+  onSaveProject?: (projectData: Partial<Project>) => void;
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
   isOpen,
   onClose,
   projectToEdit,
-  projectCategories = ['Mobile App', 'Web App', 'Design', 'Infrastructure', 'Marketing'],
+  projectCategories,
+  existingCategories,
   onSave,
+  onSaveProject,
 }) => {
+  const activeCategories = existingCategories || projectCategories || ['Mobile App', 'Web App', 'Design', 'Infrastructure', 'Marketing'];
+  const handleSaveCallback = onSaveProject || onSave || (() => {});
+
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [budget, setBudget] = useState(16450);
-  const [category, setCategory] = useState(projectCategories[0] || 'Mobile App');
+  const [category, setCategory] = useState(activeCategories[0] || 'Mobile App');
   const [customCategoryInput, setCustomCategoryInput] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
 
@@ -42,13 +49,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setName('');
       setCode('PRJ-0' + Math.floor(Math.random() * 10 + 4));
       setBudget(16450);
-      setCategory(projectCategories[0] || 'Mobile App');
+      setCategory(activeCategories[0] || 'Mobile App');
       setIsCustomCategory(false);
       setCustomCategoryInput('');
       setStartDate(new Date().toISOString().split('T')[0]);
       setEndDate(new Date().toISOString().split('T')[0]);
     }
-  }, [projectToEdit, isOpen, projectCategories]);
+  }, [projectToEdit, isOpen, activeCategories]);
 
   if (!isOpen) return null;
 
@@ -59,7 +66,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       finalCategory = customCategoryInput.trim();
     }
 
-    onSave({
+    handleSaveCallback({
       id: projectToEdit ? projectToEdit.id : undefined,
       name,
       code,
@@ -179,7 +186,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               }}
               className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
             >
-              {projectCategories.map((cat) => (
+              {activeCategories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
