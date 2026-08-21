@@ -41,8 +41,8 @@ const DEFAULT_PROJECTS: Project[] = [
 ];
 
 const DEFAULT_BATCH_TABLES: BatchTable[] = [
-  { id: 'tbl-101', name: 'Ingresos Julio 2026', mode: 'income', createdAt: '2026-07-01', isCollapsed: false },
-  { id: 'tbl-102', name: 'Gastos Agosto 2026', mode: 'expense', createdAt: '2026-08-01', isCollapsed: false },
+  { id: 'tbl-101', name: 'Ingresos Julio 2026', mode: 'income', projectId: 'PRJ-01', createdAt: '2026-07-01', isCollapsed: false },
+  { id: 'tbl-102', name: 'Gastos Agosto 2026', mode: 'expense', projectId: 'PRJ-01', createdAt: '2026-08-01', isCollapsed: false },
 ];
 
 const DEFAULT_EXPENSES: Expense[] = [
@@ -550,11 +550,12 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
     }
   };
 
-  // Mass Batch Save Handler with Atomic Append & Period Table Link
+  // Mass Batch Save Handler with Atomic Append & Period Table Link & Project Link
   const handleSaveBatch = useCallback((payload: {
     mode: BatchMode;
     targetTableId?: string;
     newTableName?: string;
+    targetProjectId?: string;
     expenses?: Partial<Expense>[];
     tasks?: Partial<Task>[];
     documents?: Partial<Document>[];
@@ -564,12 +565,15 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
       let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
       let activeTableId = payload.targetTableId;
 
+      const fallbackProjectId = payload.targetProjectId || (activeProjectFilter !== 'all' ? activeProjectFilter : prev.projects[0]?.id || 'PRJ-01');
+
       // Create new table if targetTableId is missing and newTableName provided
       if (!activeTableId && payload.newTableName) {
         const newTbl: BatchTable = {
           id: 'tbl-' + Date.now(),
           name: payload.newTableName,
           mode: payload.mode,
+          projectId: fallbackProjectId,
           createdAt: new Date().toISOString().split('T')[0],
           isCollapsed: false,
         };
@@ -591,7 +595,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
           concept: e.concept || 'Nuevo Registro',
           amount: e.amount || 0,
           category: e.category || 'General',
-          projectId: e.projectId || prev.projects[0]?.id || 'PRJ-01',
+          projectId: e.projectId || fallbackProjectId,
           date: e.date || new Date().toISOString().split('T')[0],
           status: 'PAID' as const,
           tableId: activeTableId || e.tableId
@@ -607,7 +611,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
           title: t.title || 'Nueva Tarea',
           status: 'TODO' as const,
           priority: t.priority || 'MEDIUM',
-          projectId: t.projectId || prev.projects[0]?.id || 'PRJ-01',
+          projectId: t.projectId || fallbackProjectId,
           assigneeName: t.assigneeName || 'Edmundo A.',
           assignee: t.assigneeName || 'Edmundo A.',
           dueDate: t.dueDate || new Date().toISOString().split('T')[0],
@@ -625,7 +629,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
           format: d.format || 'image',
           docType: d.docType || 'IMAGE',
           typeLabel: d.typeLabel || 'Documento',
-          projectId: d.projectId || prev.projects[0]?.id || 'PRJ-01',
+          projectId: d.projectId || fallbackProjectId,
           date: d.date || new Date().toISOString().split('T')[0],
           updatedAt: d.date || new Date().toISOString().split('T')[0],
           fileUrl: d.fileUrl || '#',
@@ -649,7 +653,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
 
     const count = (payload.expenses?.length || 0) + (payload.tasks?.length || 0) + (payload.documents?.length || 0);
     triggerToast(`⚡ Carga masiva procesada: ${count} registros anexados exitosamente.`);
-  }, []);
+  }, [activeProjectFilter]);
 
   const handleSaveExpense = (data: Partial<Expense>) => {
     setWorkspaceState(prev => {

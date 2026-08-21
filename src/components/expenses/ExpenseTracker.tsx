@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Project, Expense, BatchTable } from '@/types';
-import { Plus, Filter, AlertTriangle, Edit2, Trash2, Layers, ListFilter, FolderKanban } from 'lucide-react';
+import { Plus, Filter, AlertTriangle, Edit2, Trash2, Layers, ListFilter, FolderKanban, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { BatchTableAccordion } from './BatchTableAccordion';
 
 interface ExpenseTrackerProps {
@@ -55,6 +55,7 @@ export const ExpenseTracker: React.FC<ExpenseTrackerProps> = ({
   const netBalance = totalIncome - totalExpenses;
 
   const formatCurrency = (val: number) => {
+    if (val === null || val === undefined || isNaN(val)) return '$0';
     if (val % 1 === 0) {
       return '$' + Math.round(val).toLocaleString('es-MX');
     }
@@ -111,80 +112,118 @@ export const ExpenseTracker: React.FC<ExpenseTrackerProps> = ({
         </div>
       </div>
 
-      {/* Summary Bar */}
+      {/* Global Summary Bar */}
       <div className="p-5 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 flex flex-wrap items-center justify-between gap-4">
-        <div className="text-xs font-semibold">
-          Ingresos Totales: <span className="text-emerald-500 font-bold">+{formatCurrency(totalIncome)}</span>
+        <div className="text-xs font-semibold flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-emerald-500" />
+          <span>Ingresos Totales:</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">+{formatCurrency(totalIncome)} MXN</span>
         </div>
-        <div className="text-xs font-semibold">
-          Gastos Totales: <span className="text-rose-500 font-bold">-{formatCurrency(totalExpenses)}</span>
+        <div className="text-xs font-semibold flex items-center gap-2">
+          <TrendingDown className="w-4 h-4 text-rose-500" />
+          <span>Gastos Totales:</span>
+          <span className="text-rose-600 dark:text-rose-400 font-extrabold text-sm">-{formatCurrency(totalExpenses)} MXN</span>
         </div>
-        <div className="text-xs font-bold">
-          Balance Neto: <span className={netBalance >= 0 ? 'text-blue-500' : 'text-rose-500'}>{netBalance >= 0 ? '+' : '-'}{formatCurrency(Math.abs(netBalance))}</span>
+        <div className="text-xs font-bold flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-blue-500" />
+          <span>Balance Neto:</span>
+          <span className={`font-black text-base ${netBalance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}`}>
+            {netBalance >= 0 ? '+' : '-'}{formatCurrency(Math.abs(netBalance))} MXN
+          </span>
         </div>
       </div>
 
-      {/* Budget Overview Cards per Project */}
+      {/* Budget & Revenue Cards per Project */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {filteredProjects.map((p) => {
-          const prjExpenses = expenses.filter(e => e.projectId === p.id && e.type === 'EXPENSE');
-          const spentBudget = prjExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+          const prjExpenses = expenses.filter(e => e.projectId === p.id);
+          const incomeSum = prjExpenses.filter(e => e.type === 'INCOME').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+          const expenseSum = prjExpenses.filter(e => e.type === 'EXPENSE').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+          const prjNet = incomeSum - expenseSum;
+
           const totalBudget = p.totalBudget ?? p.budget ?? 16450;
-          const pct = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
-          const isOver = pct >= 100;
-          const isWarn = pct >= 80 && pct < 100;
+          const pctExpense = totalBudget > 0 ? Math.round((expenseSum / totalBudget) * 100) : 0;
+          const pctIncome = totalBudget > 0 ? Math.round((incomeSum / totalBudget) * 100) : 0;
+
+          const isOver = pctExpense >= 100;
+          const isWarn = pctExpense >= 80 && pctExpense < 100;
 
           return (
             <div
               key={p.id}
-              className="p-5 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm flex flex-col justify-between"
+              className="p-5 rounded-2xl apple-glass border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm flex flex-col justify-between space-y-3"
             >
               <div>
+                {/* Title & Project Badge */}
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                    {p.name}
+                  <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.color || '#007AFF' }} />
+                    <span>{p.name}</span>
                   </span>
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      isOver
-                        ? 'bg-red-500/10 text-red-500 border border-red-500/20'
-                        : isWarn
-                        ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                        : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                      prjNet >= 0
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
                     }`}
                   >
-                    {pct}% Ejecutado
+                    {prjNet >= 0 ? '🟢 Balance Positivo' : '🔴 Déficit'}
                   </span>
                 </div>
 
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="text-lg font-extrabold text-neutral-900 dark:text-neutral-100">
-                    {formatCurrency(spentBudget)}
-                  </span>
-                  <span className="text-xs text-neutral-400">
-                    de {formatCurrency(totalBudget)}
+                {/* Financial Totals Breakdown */}
+                <div className="grid grid-cols-2 gap-2 my-2 p-2.5 rounded-xl bg-neutral-100/60 dark:bg-neutral-900/60 border border-neutral-200/40 dark:border-neutral-800/40">
+                  <div>
+                    <span className="text-[10px] font-semibold text-neutral-400 block uppercase tracking-wider">
+                      Ingresos (Entradas)
+                    </span>
+                    <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
+                      +{formatCurrency(incomeSum)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold text-neutral-400 block uppercase tracking-wider">
+                      Gastos (Salidas)
+                    </span>
+                    <span className="text-xs font-extrabold text-rose-600 dark:text-rose-400">
+                      -{formatCurrency(expenseSum)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Net Balance Row */}
+                <div className="flex items-baseline justify-between mt-2 pt-1 border-t border-neutral-200/40 dark:border-neutral-800/40">
+                  <span className="text-[11px] font-bold text-neutral-500">Balance Neto:</span>
+                  <span className={`text-base font-black ${prjNet >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {prjNet >= 0 ? '+' : '-'}{formatCurrency(Math.abs(prjNet))} MXN
                   </span>
                 </div>
 
-                {/* Progress bar */}
-                <div className="w-full bg-neutral-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden mt-3">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isOver
-                        ? 'bg-red-500 animate-pulse'
-                        : isWarn
-                        ? 'bg-amber-500'
-                        : 'bg-blue-500'
-                    }`}
-                    style={{ width: `${Math.min(pct, 100)}%` }}
-                  />
+                {/* Progress Bar (Spent vs Budget) */}
+                <div className="mt-3 space-y-1">
+                  <div className="flex justify-between text-[10px] font-bold text-neutral-400">
+                    <span>Ejecución de Gastos ({pctExpense}%)</span>
+                    <span>Presupuesto: {formatCurrency(totalBudget)}</span>
+                  </div>
+                  <div className="w-full bg-neutral-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isOver
+                          ? 'bg-red-500 animate-pulse'
+                          : isWarn
+                          ? 'bg-amber-500'
+                          : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${Math.min(pctExpense, 100)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
               {isOver && (
-                <div className="flex items-center gap-1.5 mt-3 text-[11px] text-red-500 font-semibold">
+                <div className="flex items-center gap-1.5 text-[11px] text-red-500 font-semibold pt-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Excedido por {formatCurrency(spentBudget - totalBudget)}</span>
+                  <span>Excedido por {formatCurrency(expenseSum - totalBudget)}</span>
                 </div>
               )}
             </div>
