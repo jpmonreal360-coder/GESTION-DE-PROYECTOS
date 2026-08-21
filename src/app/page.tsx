@@ -13,7 +13,7 @@ import { ProjectModal } from '@/components/modals/ProjectModal';
 import { ActionModal } from '@/components/modals/ActionModal';
 import { BatchEntryModal, BatchMode } from '@/components/modals/BatchEntryModal';
 import { ImageLightboxModal } from '@/components/modals/ImageLightboxModal';
-import { Project, Expense, Task, Document, WikiDoc } from '@/types';
+import { Project, Expense, Task, Document, WikiDoc, BatchTable } from '@/types';
 import { realtimeSync, SyncPayload, SaveStatus, urlSafeEncodeObj, urlSafeDecodeStr } from '@/lib/firebaseSync';
 import { X, Copy, CheckCircle } from 'lucide-react';
 
@@ -26,22 +26,28 @@ interface WorkspaceState {
   wikiDocs: WikiDoc[];
   categories: string[];
   projectCategories: string[];
+  batchTables: BatchTable[];
 }
 
-// Module-level stable constants (prevents re-creation on every render)
+// Module-level stable constants
 const DEFAULT_PROJECTS: Project[] = [
   { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 450000, totalBudget: 450000, spent: 284500, spentBudget: 284500, color: '#007AFF', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
   { id: 'PRJ-02', name: 'SaaS Dashboard v2', code: 'SAAS-02', budget: 350000, totalBudget: 350000, spent: 312000, spentBudget: 312000, color: '#AF52DE', category: 'Web App', startDate: '2026-07-15', endDate: '2026-10-15' },
   { id: 'PRJ-03', name: 'Brand Identity 2026', code: 'BRAND-03', budget: 220000, totalBudget: 220000, spent: 148000, spentBudget: 148000, color: '#FF9500', category: 'Design', startDate: '2026-08-05', endDate: '2026-09-30' }
 ];
 
+const DEFAULT_BATCH_TABLES: BatchTable[] = [
+  { id: 'tbl-101', name: 'Ingresos Julio 2026', mode: 'income', createdAt: '2026-07-01', isCollapsed: false },
+  { id: 'tbl-102', name: 'Gastos Agosto 2026', mode: 'expense', createdAt: '2026-08-01', isCollapsed: false },
+];
+
 const DEFAULT_EXPENSES: Expense[] = [
-  { id: 'exp-101', type: 'INCOME', concept: 'Anticipo 50% Proyecto Rediseño iOS', amount: 225000, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-08-01', status: 'PAID' },
-  { id: 'exp-102', type: 'INCOME', concept: 'Cobro Hito 1 SaaS Dashboard', amount: 175000, category: 'Facturación / Cobro', projectId: 'PRJ-02', date: '2026-08-05', status: 'PAID' },
-  { id: 'exp-103', type: 'INCOME', concept: 'Pago Total Brand Identity 2026', amount: 220000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-08-08', status: 'PAID' },
-  { id: 'exp-1', type: 'EXPENSE', concept: 'Suscripción Figma Enterprise', amount: 28400, category: 'Software & Cloud', projectId: 'PRJ-01', date: '2026-08-15', status: 'PAID' },
-  { id: 'exp-2', type: 'EXPENSE', concept: 'Servidores AWS & Cloudflare CDN', amount: 64000, category: 'Infraestructura & Server', projectId: 'PRJ-02', date: '2026-08-14', status: 'PAID' },
-  { id: 'exp-3', type: 'EXPENSE', concept: 'Tipografía Personalizada Font Lab', amount: 16450, category: 'Diseño UI/UX', projectId: 'PRJ-03', date: '2026-08-10', status: 'PAID' }
+  { id: 'exp-101', type: 'INCOME', concept: 'Anticipo 50% Proyecto Rediseño iOS', amount: 225000, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-08-01', status: 'PAID', tableId: 'tbl-101' },
+  { id: 'exp-102', type: 'INCOME', concept: 'Cobro Hito 1 SaaS Dashboard', amount: 175000, category: 'Facturación / Cobro', projectId: 'PRJ-02', date: '2026-08-05', status: 'PAID', tableId: 'tbl-101' },
+  { id: 'exp-103', type: 'INCOME', concept: 'Pago Total Brand Identity 2026', amount: 220000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-08-08', status: 'PAID', tableId: 'tbl-101' },
+  { id: 'exp-1', type: 'EXPENSE', concept: 'Suscripción Figma Enterprise', amount: 28400, category: 'Software & Cloud', projectId: 'PRJ-01', date: '2026-08-15', status: 'PAID', tableId: 'tbl-102' },
+  { id: 'exp-2', type: 'EXPENSE', concept: 'Servidores AWS & Cloudflare CDN', amount: 64000, category: 'Infraestructura & Server', projectId: 'PRJ-02', date: '2026-08-14', status: 'PAID', tableId: 'tbl-102' },
+  { id: 'exp-3', type: 'EXPENSE', concept: 'Tipografía Personalizada Font Lab', amount: 16450, category: 'Diseño UI/UX', projectId: 'PRJ-03', date: '2026-08-10', status: 'PAID', tableId: 'tbl-102' }
 ];
 
 const DEFAULT_TASKS: Task[] = [
@@ -105,7 +111,7 @@ const DEFAULT_PROJECT_CATEGORIES = [
 ];
 
 export default function Home() {
-  const [currentView, setCurrentView] = useState<string>('dashboard');
+  const [currentView, setCurrentView] = useState<string>('expenses');
   const [activeProjectFilter, setActiveProjectFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -128,6 +134,7 @@ export default function Home() {
   // Batch Entry Modal State
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
   const [batchInitialMode, setBatchInitialMode] = useState<BatchMode>('expense');
+  const [batchTargetTableId, setBatchTargetTableId] = useState<string>('');
 
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
@@ -146,7 +153,8 @@ export default function Home() {
     documents: DEFAULT_DOCUMENTS,
     wikiDocs: DEFAULT_WIKI_DOCS,
     categories: DEFAULT_CATEGORIES,
-    projectCategories: DEFAULT_PROJECT_CATEGORIES
+    projectCategories: DEFAULT_PROJECT_CATEGORIES,
+    batchTables: DEFAULT_BATCH_TABLES
   });
 
   // Serialized Save Queue to prevent concurrent PUT requests
@@ -169,7 +177,8 @@ export default function Home() {
       documents: Array.isArray(data.documents) ? data.documents : [],
       wikiDocs: Array.isArray(data.wikiDocs) ? data.wikiDocs : [],
       categories: Array.isArray(data.categories) ? data.categories : DEFAULT_CATEGORIES,
-      projectCategories: Array.isArray(data.projectCategories) ? data.projectCategories : DEFAULT_PROJECT_CATEGORIES
+      projectCategories: Array.isArray(data.projectCategories) ? data.projectCategories : DEFAULT_PROJECT_CATEGORIES,
+      batchTables: Array.isArray(data.batchTables) ? data.batchTables : DEFAULT_BATCH_TABLES
     });
     const ts = Number(data.updatedAt ?? 0);
     lastRemoteTimestamp.current = ts;
@@ -188,6 +197,7 @@ export default function Home() {
       const savedWiki = localStorage.getItem('rc_wiki');
       const savedCategories = localStorage.getItem('rc_categories');
       const savedPrjCat = localStorage.getItem('rc_prj_categories');
+      const savedBatchTables = localStorage.getItem('rc_batch_tables');
 
       setWorkspaceState({
         isCustomized: true,
@@ -197,10 +207,10 @@ export default function Home() {
         documents: savedDocs ? JSON.parse(savedDocs) : DEFAULT_DOCUMENTS,
         wikiDocs: savedWiki ? JSON.parse(savedWiki) : DEFAULT_WIKI_DOCS,
         categories: savedCategories ? JSON.parse(savedCategories) : DEFAULT_CATEGORIES,
-        projectCategories: savedPrjCat ? JSON.parse(savedPrjCat) : DEFAULT_PROJECT_CATEGORIES
+        projectCategories: savedPrjCat ? JSON.parse(savedPrjCat) : DEFAULT_PROJECT_CATEGORIES,
+        batchTables: savedBatchTables ? JSON.parse(savedBatchTables) : DEFAULT_BATCH_TABLES
       });
     } else {
-      // Do NOT auto-publish seed data
       setWorkspaceState({
         isCustomized: false,
         projects: DEFAULT_PROJECTS,
@@ -209,7 +219,8 @@ export default function Home() {
         documents: DEFAULT_DOCUMENTS,
         wikiDocs: DEFAULT_WIKI_DOCS,
         categories: DEFAULT_CATEGORIES,
-        projectCategories: DEFAULT_PROJECT_CATEGORIES
+        projectCategories: DEFAULT_PROJECT_CATEGORIES,
+        batchTables: DEFAULT_BATCH_TABLES
       });
     }
   }, []);
@@ -221,7 +232,7 @@ export default function Home() {
     });
   }, []);
 
-  // Single asynchronous bootstrap useEffect on mount (Runs EXACTLY ONCE per mount)
+  // Single asynchronous bootstrap useEffect on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -277,7 +288,7 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
 
-  // Centralized Automatic Persistence Effect (Executed ONLY AFTER hydrated === true)
+  // Centralized Automatic Persistence Effect
   useEffect(() => {
     if (!hydrated) return;
 
@@ -289,6 +300,7 @@ export default function Home() {
     localStorage.setItem('rc_wiki', JSON.stringify(workspaceState.wikiDocs));
     localStorage.setItem('rc_categories', JSON.stringify(workspaceState.categories));
     localStorage.setItem('rc_prj_categories', JSON.stringify(workspaceState.projectCategories));
+    localStorage.setItem('rc_batch_tables', JSON.stringify(workspaceState.batchTables));
 
     if (skipNextCloudSave.current) {
       skipNextCloudSave.current = false;
@@ -304,13 +316,14 @@ export default function Home() {
       wikiDocs: workspaceState.wikiDocs,
       categories: workspaceState.categories,
       projectCategories: workspaceState.projectCategories,
+      batchTables: workspaceState.batchTables,
     }).catch((error) => {
       console.error("Error al guardar en la nube", error);
       setSaveStatus("error");
     });
   }, [hydrated, workspaceState, queueSave]);
 
-  // Subscription/Polling installed ONLY AFTER hydrated === true with proper cleanup
+  // Subscription/Polling installed ONLY AFTER hydrated === true
   useEffect(() => {
     if (!hydrated) return;
 
@@ -362,6 +375,7 @@ export default function Home() {
       wikiDocs: workspaceState.wikiDocs,
       categories: workspaceState.categories,
       projectCategories: workspaceState.projectCategories,
+      batchTables: workspaceState.batchTables,
     };
 
     const isSuccess = await queueSave(stateObj);
@@ -386,6 +400,7 @@ export default function Home() {
         wikiDocs: workspaceState.wikiDocs,
         categories: workspaceState.categories,
         projectCategories: workspaceState.projectCategories,
+        batchTables: workspaceState.batchTables,
         updatedAt: Date.now()
       };
 
@@ -491,26 +506,62 @@ export default function Home() {
     }
   };
 
-  const handleOpenNewActionModal = (type: 'expense' | 'task' | 'doc' = 'doc') => {
-    setEditType(null);
-    setEditItem(null);
-    setIsActionModalOpen(true);
-  };
-
-  const handleOpenBatchModal = (initialMode: BatchMode = 'expense') => {
+  const handleOpenBatchModal = (initialMode: BatchMode = 'expense', targetTableId: string = '') => {
     setBatchInitialMode(initialMode);
+    setBatchTargetTableId(targetTableId);
     setIsBatchModalOpen(true);
   };
 
-  // Mass Batch Save Handler (Multi-row Grid Save)
+  // Collapsible Accordion Table Handlers
+  const handleToggleTableCollapse = (tableId: string) => {
+    setWorkspaceState(prev => ({
+      ...prev,
+      batchTables: prev.batchTables.map(t =>
+        t.id === tableId ? { ...t, isCollapsed: !t.isCollapsed } : t
+      )
+    }));
+  };
+
+  const handleDeleteTable = (tableId: string) => {
+    const tbl = workspaceState.batchTables.find(t => t.id === tableId);
+    if (!tbl) return;
+
+    if (confirm(`¿Eliminar la tabla "${tbl.name}"? Sus registros asociados quedarán archivados.`)) {
+      setWorkspaceState(prev => ({
+        ...prev,
+        batchTables: prev.batchTables.filter(t => t.id !== tableId)
+      }));
+      triggerToast(`🗑️ Tabla "${tbl.name}" eliminada.`);
+    }
+  };
+
+  // Mass Batch Save Handler with Atomic Append & Period Table Link
   const handleSaveBatch = useCallback((payload: {
     mode: BatchMode;
+    targetTableId?: string;
+    newTableName?: string;
     expenses?: Partial<Expense>[];
     tasks?: Partial<Task>[];
     documents?: Partial<Document>[];
     newCategories?: string[];
   }) => {
     setWorkspaceState(prev => {
+      let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
+      let activeTableId = payload.targetTableId;
+
+      // Create new table if targetTableId is missing and newTableName provided
+      if (!activeTableId && payload.newTableName) {
+        const newTbl: BatchTable = {
+          id: 'tbl-' + Date.now(),
+          name: payload.newTableName,
+          mode: payload.mode,
+          createdAt: new Date().toISOString().split('T')[0],
+          isCollapsed: false,
+        };
+        currentTables = [newTbl, ...currentTables];
+        activeTableId = newTbl.id;
+      }
+
       let newCategories = prev.categories;
       if (payload.newCategories && payload.newCategories.length > 0) {
         const added = payload.newCategories.filter(c => !newCategories.includes(c));
@@ -527,8 +578,10 @@ export default function Home() {
           category: e.category || 'General',
           projectId: e.projectId || prev.projects[0]?.id || 'PRJ-01',
           date: e.date || new Date().toISOString().split('T')[0],
-          status: 'PAID' as const
+          status: 'PAID' as const,
+          tableId: activeTableId || e.tableId
         }));
+        // ATOMIC APPEND: append new rows without deleting or overwriting previous items!
         newExpenses = [...prepared, ...prev.expenses];
       }
 
@@ -543,7 +596,8 @@ export default function Home() {
           assigneeName: t.assigneeName || 'Edmundo A.',
           assignee: t.assigneeName || 'Edmundo A.',
           dueDate: t.dueDate || new Date().toISOString().split('T')[0],
-          tags: t.tags || ['Captura Masiva']
+          tags: t.tags || ['Captura Masiva'],
+          tableId: activeTableId || t.tableId
         }));
         newTasks = [...prepared, ...prev.tasks];
       }
@@ -561,7 +615,8 @@ export default function Home() {
           updatedAt: d.date || new Date().toISOString().split('T')[0],
           fileUrl: d.fileUrl || '#',
           previewUrl: d.previewUrl,
-          description: d.description || 'Documento en captura masiva'
+          description: d.description || 'Documento en captura masiva',
+          tableId: activeTableId || d.tableId
         }));
         newDocs = [...prepared, ...prev.documents];
       }
@@ -569,6 +624,7 @@ export default function Home() {
       return {
         ...prev,
         isCustomized: true,
+        batchTables: currentTables,
         categories: newCategories,
         expenses: newExpenses,
         tasks: newTasks,
@@ -577,7 +633,7 @@ export default function Home() {
     });
 
     const count = (payload.expenses?.length || 0) + (payload.tasks?.length || 0) + (payload.documents?.length || 0);
-    triggerToast(`⚡ Captura masiva procesada: ${count} registros guardados exitosamente.`);
+    triggerToast(`⚡ Carga masiva procesada: ${count} registros anexados exitosamente.`);
   }, []);
 
   const handleSaveExpense = (data: Partial<Expense>) => {
@@ -781,6 +837,7 @@ export default function Home() {
             <ExpenseTracker
               expenses={workspaceState.expenses}
               projects={workspaceState.projects}
+              tables={workspaceState.batchTables}
               activeProjectFilter={activeProjectFilter}
               onAddExpense={() => handleOpenBatchModal('expense')}
               onEditExpense={(exp) => {
@@ -789,6 +846,9 @@ export default function Home() {
                 setIsActionModalOpen(true);
               }}
               onDeleteExpense={handleDeleteExpense}
+              onToggleTableCollapse={handleToggleTableCollapse}
+              onDeleteTable={handleDeleteTable}
+              onFeedTable={(tableId, mode) => handleOpenBatchModal(mode, tableId)}
             />
           )}
 
@@ -916,6 +976,8 @@ export default function Home() {
         onClose={() => setIsBatchModalOpen(false)}
         projects={workspaceState.projects}
         categories={workspaceState.categories}
+        tables={workspaceState.batchTables}
+        targetTableId={batchTargetTableId}
         initialMode={batchInitialMode}
         onSaveBatch={handleSaveBatch}
       />

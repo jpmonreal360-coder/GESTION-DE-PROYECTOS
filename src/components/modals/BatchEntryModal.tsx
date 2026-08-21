@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Layers, DollarSign, Calendar, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Project, Expense, Task, Document } from '@/types';
+import { X, Plus, Trash2, Layers, DollarSign, Calendar, FileText, CheckCircle2, AlertCircle, FolderPlus } from 'lucide-react';
+import { Project, Expense, Task, Document, BatchTable } from '@/types';
 
 export type BatchMode = 'doc' | 'income' | 'expense' | 'task';
 
@@ -26,9 +26,13 @@ interface BatchEntryModalProps {
   onClose: () => void;
   projects: Project[];
   categories?: string[];
+  tables?: BatchTable[];
+  targetTableId?: string;
   initialMode?: BatchMode;
   onSaveBatch: (payload: {
     mode: BatchMode;
+    targetTableId?: string;
+    newTableName?: string;
     expenses?: Partial<Expense>[];
     tasks?: Partial<Task>[];
     documents?: Partial<Document>[];
@@ -48,11 +52,17 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
     'Infraestructura & Server',
     'Marketing & Ads'
   ],
+  tables = [],
+  targetTableId = '',
   initialMode = 'expense',
   onSaveBatch,
 }) => {
   const [mode, setMode] = useState<BatchMode>(initialMode);
   const [rows, setRows] = useState<BatchRowData[]>([]);
+
+  // Table Selection State
+  const [selectedTableId, setSelectedTableId] = useState<string>(targetTableId || 'NEW');
+  const [newTableName, setNewTableName] = useState<string>('');
 
   const defaultProjectId = projects[0]?.id || 'PRJ-01';
   const defaultCategory = categories[0] || 'Facturación / Cobro';
@@ -73,13 +83,18 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
     docUrl: '',
   });
 
+  // Filter matching tables for current mode
+  const matchingTables = tables.filter(t => t.mode === mode);
+
   // Reset or initialize 3 empty rows when opened or mode changes
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
+      setSelectedTableId(targetTableId || (matchingTables.length > 0 ? matchingTables[0].id : 'NEW'));
+      setNewTableName(initialMode === 'income' ? 'Ingresos Julio 2026' : initialMode === 'expense' ? 'Gastos Agosto 2026' : 'Nuevas Tareas');
       setRows([createNewRow(), createNewRow(), createNewRow()]);
     }
-  }, [isOpen, initialMode]);
+  }, [isOpen, initialMode, targetTableId]);
 
   if (!isOpen) return null;
 
@@ -193,6 +208,8 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
 
     onSaveBatch({
       mode,
+      targetTableId: selectedTableId === 'NEW' ? undefined : selectedTableId,
+      newTableName: selectedTableId === 'NEW' ? (newTableName.trim() || `${mode === 'income' ? 'Ingresos' : 'Gastos'} ${todayStr}`) : undefined,
       expenses: expensesToSave,
       tasks: tasksToSave,
       documents: documentsToSave,
@@ -218,28 +235,35 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
               <Layers className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-xl font-bold tracking-tight">Captura Masiva de Datos</h3>
+              <h3 className="text-xl font-bold tracking-tight">Captura Masiva de Datos por Tabla/Período</h3>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Registra múltiples entradas en lote estilo tabla dinámica con guardado en tiempo real
+                Crea o alimenta tablas masivas por período (ej. Ingresos Julio) sin sobrescribir información previa
               </p>
             </div>
           </div>
 
-          {/* Mode Selector Dropdown */}
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-              Modo de Captura:
-            </label>
-            <select
-              value={mode}
-              onChange={e => setMode(e.target.value as BatchMode)}
-              className="p-2.5 px-4 rounded-xl bg-white dark:bg-neutral-800 border-2 border-blue-500/40 text-neutral-900 dark:text-neutral-100 font-semibold text-xs shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-            >
-              <option value="expense">📉 Salida / Gasto (-)</option>
-              <option value="income">📈 Entrada / Ingreso (+)</option>
-              <option value="task">📋 Tarea (Kanban / Equipo)</option>
-              <option value="doc">📁 Documento / Enlace Cloud</option>
-            </select>
+          {/* Mode Selector & Table Target Selection */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                Modo:
+              </label>
+              <select
+                value={mode}
+                onChange={e => {
+                  const newMode = e.target.value as BatchMode;
+                  setMode(newMode);
+                  const modeTabs = tables.filter(t => t.mode === newMode);
+                  setSelectedTableId(modeTabs.length > 0 ? modeTabs[0].id : 'NEW');
+                }}
+                className="p-2 px-3 rounded-xl bg-white dark:bg-neutral-800 border-2 border-blue-500/40 text-neutral-900 dark:text-neutral-100 font-semibold text-xs shadow-sm outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+              >
+                <option value="expense">📉 Salida / Gasto (-)</option>
+                <option value="income">📈 Entrada / Ingreso (+)</option>
+                <option value="task">📋 Tarea (Kanban / Equipo)</option>
+                <option value="doc">📁 Documento / Enlace Cloud</option>
+              </select>
+            </div>
 
             <button
               onClick={onClose}
@@ -248,6 +272,44 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* Target Table Selector Banner */}
+        <div className="px-6 py-3 bg-blue-50/60 dark:bg-blue-950/30 border-b border-blue-200/40 dark:border-blue-900/40 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+            <FolderPlus className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 shrink-0">
+              Tabla de Destino / Período:
+            </label>
+            <select
+              value={selectedTableId}
+              onChange={e => setSelectedTableId(e.target.value)}
+              className="p-2 px-3 rounded-xl bg-white dark:bg-neutral-800 border border-blue-300 dark:border-blue-700 text-xs font-bold text-neutral-800 dark:text-neutral-100 outline-none flex-1 max-w-xs cursor-pointer"
+            >
+              <option value="NEW">➕ Crear Nueva Tabla / Período...</option>
+              {matchingTables.map(t => (
+                <option key={t.id} value={t.id}>
+                  📊 {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedTableId === 'NEW' && (
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+              <label className="text-xs font-bold text-blue-600 dark:text-blue-400 shrink-0">
+                Nombre de la Tabla:
+              </label>
+              <input
+                type="text"
+                required
+                value={newTableName}
+                onChange={e => setNewTableName(e.target.value)}
+                placeholder={mode === 'income' ? 'Ej. Ingresos Julio 2026' : 'Ej. Gastos Agosto 2026'}
+                className="w-full p-2 px-3 rounded-xl bg-white dark:bg-neutral-800 border-2 border-blue-500 text-xs font-bold text-neutral-900 dark:text-neutral-100 outline-none"
+              />
+            </div>
+          )}
         </div>
 
         {/* Batch Entry Table Body */}

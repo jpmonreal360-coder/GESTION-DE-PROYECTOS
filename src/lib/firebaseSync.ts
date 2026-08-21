@@ -10,6 +10,7 @@ export interface SyncPayload {
   wikiDocs: any[];
   categories: any[];
   projectCategories: any[];
+  batchTables?: any[];
   updatedAt: number;
 }
 

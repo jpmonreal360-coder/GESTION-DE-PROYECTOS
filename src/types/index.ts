@@ -6,6 +6,15 @@ export type TransactionType = 'INCOME' | 'EXPENSE';
 export type DocType = 'PDF' | 'IMAGE' | 'GOOGLE_SHEETS' | 'CONTRACT' | 'PROPOSAL' | 'SPEC' | 'MINUTES' | 'GUIDE';
 export type FileType = 'pdf' | 'image' | 'sheets' | 'link';
 
+export interface BatchTable {
+  id: string;
+  name: string; // ej: "Ingresos Julio 2026", "Gastos Agosto 2026"
+  mode: 'expense' | 'income' | 'task' | 'doc';
+  projectId?: string;
+  createdAt: string;
+  isCollapsed?: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -36,6 +45,7 @@ export interface Task {
   assigneeName?: string;
   assigneeAvatar?: string;
   tags?: string[];
+  tableId?: string;
 }
 
 export interface Expense {
@@ -50,6 +60,7 @@ export interface Expense {
   status?: ExpenseStatus | string;
   receiptUrl?: string;
   notes?: string;
+  tableId?: string;
 }
 
 export interface Document {
@@ -69,6 +80,7 @@ export interface Document {
   date?: string;
   updatedAt?: string;
   children?: Document[];
+  tableId?: string;
 }
 
 export interface WikiDoc {
