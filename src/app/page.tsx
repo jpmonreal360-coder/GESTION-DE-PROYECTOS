@@ -821,7 +821,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
       {/* Mobile Drawer Backdrop */}
       {isMobileSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 md:hidden transition-opacity"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}

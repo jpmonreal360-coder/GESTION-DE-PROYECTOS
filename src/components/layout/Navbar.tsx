@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Project } from '@/types';
-import { Search, Plus, Share2, Folder, Save, Cloud, Check, Loader2, Layers, Menu } from 'lucide-react';
+import { Search, Share2, Folder, Save, Cloud, Check, Loader2, Layers, Menu, ChevronDown } from 'lucide-react';
 import { SaveStatus } from '@/lib/firebaseSync';
 
 interface NavbarProps {
@@ -35,6 +35,19 @@ export function Navbar({
   const activeProject = projects.find(p => p.id === activeProjectFilter);
   const handlePrimaryNewAction = openBatchModal || openActionModal;
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header className="h-14 sm:h-16 px-3 sm:px-4 md:px-7 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/70 dark:bg-[#121215]/70 backdrop-blur-md flex items-center justify-between gap-2 sticky top-0 z-30 min-w-0">
       {/* Left Group: Mobile Menu Toggle & Project Switcher */}
@@ -49,18 +62,68 @@ export function Navbar({
           </button>
         )}
 
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/60 text-xs font-semibold min-w-0 max-w-[calc(100vw-11rem)] sm:max-w-xs">
-          <Folder className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-          <select
-            value={activeProjectFilter}
-            onChange={(e) => setActiveProjectFilter(e.target.value)}
-            className="bg-transparent text-neutral-800 dark:text-neutral-200 outline-none cursor-pointer font-medium min-w-0 w-full truncate"
+        {/* Custom Apple Glass Popover Dropdown Switcher */}
+        <div className="relative min-w-0" ref={dropdownRef}>
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/60 text-xs font-semibold text-neutral-800 dark:text-neutral-200 outline-none cursor-pointer min-w-0 max-w-[calc(100vw-11rem)] sm:max-w-xs hover:bg-neutral-200/50 dark:hover:bg-neutral-700/60 transition"
           >
-            <option value="all">Todos los Proyectos ({projects.length})</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
-            ))}
-          </select>
+            <Folder className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span className="truncate">
+              {activeProjectFilter === 'all'
+                ? `Todos los Proyectos (${projects.length})`
+                : activeProject?.name || activeProjectFilter}
+            </span>
+            <ChevronDown className={`w-3.5 h-3.5 text-neutral-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isDropdownOpen && (
+            <div className="absolute top-full left-0 mt-2 w-64 max-h-64 overflow-y-auto bg-white/95 dark:bg-[#16161a]/95 border border-neutral-200/80 dark:border-neutral-800/80 rounded-2xl shadow-2xl backdrop-blur-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <button
+                onClick={() => {
+                  setActiveProjectFilter('all');
+                  setIsDropdownOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                  activeProjectFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate min-w-0">
+                  <Layers className="w-4 h-4 shrink-0 text-blue-400" />
+                  <span className="truncate">Todos los Proyectos ({projects.length})</span>
+                </div>
+                {activeProjectFilter === 'all' && <Check className="w-3.5 h-3.5 shrink-0" />}
+              </button>
+
+              <div className="h-px bg-neutral-200/60 dark:bg-neutral-800 my-1" />
+
+              {projects.map((p) => {
+                const isSelected = activeProjectFilter === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setActiveProjectFilter(p.id);
+                      setIsDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                      isSelected
+                        ? 'bg-purple-600 text-white'
+                        : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color || '#007AFF' }} />
+                      <span className="truncate">{p.name}</span>
+                    </div>
+                    {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Live Cloud Save Status Badge */}

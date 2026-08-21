@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 w-[min(18rem,85vw)] transition-transform duration-200 ${
+      className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] transition-transform duration-200 ease-out ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       } md:relative md:translate-x-0 md:w-64 md:min-w-[256px] flex flex-col justify-between p-5 bg-white/95 dark:bg-[#121215]/95 backdrop-blur-3xl border-r border-neutral-200/50 dark:border-neutral-800/50 shadow-2xl md:shadow-none overflow-y-auto shrink-0`}
     >
