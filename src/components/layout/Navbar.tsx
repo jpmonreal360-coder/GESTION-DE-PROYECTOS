@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Project } from '@/types';
-import { Search, Plus, Share2, Folder, Save, Cloud, Check, Loader2 } from 'lucide-react';
+import { Search, Plus, Share2, Folder, Save, Cloud, Check, Loader2, Layers } from 'lucide-react';
 import { SaveStatus } from '@/lib/firebaseSync';
 
 interface NavbarProps {
@@ -11,6 +11,7 @@ interface NavbarProps {
   setActiveProjectFilter: (id: string) => void;
   openSpotlight: () => void;
   openActionModal: () => void;
+  openBatchModal?: () => void;
   openProjectModal: () => void;
   onShareLink: () => void;
   onSaveToCloud?: () => void;
@@ -23,6 +24,7 @@ export function Navbar({
   setActiveProjectFilter,
   openSpotlight,
   openActionModal,
+  openBatchModal,
   openProjectModal,
   onShareLink,
   onSaveToCloud,
@@ -107,13 +109,24 @@ export function Navbar({
           <span className="hidden sm:inline">Compartir Link</span>
         </button>
 
+        {/* Mass Batch Capture Button */}
+        {openBatchModal && (
+          <button
+            onClick={openBatchModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 transition active:scale-95 shrink-0 cursor-pointer"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>+ Captura Masiva</span>
+          </button>
+        )}
+
         {/* Quick Add Button */}
         <button
           onClick={openActionModal}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-semibold shadow-sm transition active:scale-95 shrink-0"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Nuevo Registro</span>
+          <span className="hidden sm:inline">Nuevo Registro</span>
         </button>
       </div>
     </header>

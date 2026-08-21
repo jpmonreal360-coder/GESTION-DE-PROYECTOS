@@ -11,6 +11,7 @@ import { KnowledgeBase } from '@/components/wiki/KnowledgeBase';
 import { SpotlightModal } from '@/components/spotlight/SpotlightModal';
 import { ProjectModal } from '@/components/modals/ProjectModal';
 import { ActionModal } from '@/components/modals/ActionModal';
+import { BatchEntryModal, BatchMode } from '@/components/modals/BatchEntryModal';
 import { ImageLightboxModal } from '@/components/modals/ImageLightboxModal';
 import { Project, Expense, Task, Document, WikiDoc } from '@/types';
 import { realtimeSync, SyncPayload, SaveStatus, urlSafeEncodeObj, urlSafeDecodeStr } from '@/lib/firebaseSync';
@@ -123,6 +124,10 @@ export default function Home() {
   const [isActionModalOpen, setIsActionModalOpen] = useState<boolean>(false);
   const [editType, setEditType] = useState<'expense' | 'task' | 'doc' | null>(null);
   const [editItem, setEditItem] = useState<any>(null);
+
+  // Batch Entry Modal State
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
+  const [batchInitialMode, setBatchInitialMode] = useState<BatchMode>('expense');
 
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
@@ -492,6 +497,89 @@ export default function Home() {
     setIsActionModalOpen(true);
   };
 
+  const handleOpenBatchModal = (initialMode: BatchMode = 'expense') => {
+    setBatchInitialMode(initialMode);
+    setIsBatchModalOpen(true);
+  };
+
+  // Mass Batch Save Handler (Multi-row Grid Save)
+  const handleSaveBatch = useCallback((payload: {
+    mode: BatchMode;
+    expenses?: Partial<Expense>[];
+    tasks?: Partial<Task>[];
+    documents?: Partial<Document>[];
+    newCategories?: string[];
+  }) => {
+    setWorkspaceState(prev => {
+      let newCategories = prev.categories;
+      if (payload.newCategories && payload.newCategories.length > 0) {
+        const added = payload.newCategories.filter(c => !newCategories.includes(c));
+        newCategories = [...newCategories, ...added];
+      }
+
+      let newExpenses = prev.expenses;
+      if (payload.expenses && payload.expenses.length > 0) {
+        const prepared = payload.expenses.map((e, idx) => ({
+          id: 'exp-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substr(2, 4),
+          type: e.type || 'EXPENSE',
+          concept: e.concept || 'Nuevo Registro',
+          amount: e.amount || 0,
+          category: e.category || 'General',
+          projectId: e.projectId || prev.projects[0]?.id || 'PRJ-01',
+          date: e.date || new Date().toISOString().split('T')[0],
+          status: 'PAID' as const
+        }));
+        newExpenses = [...prepared, ...prev.expenses];
+      }
+
+      let newTasks = prev.tasks;
+      if (payload.tasks && payload.tasks.length > 0) {
+        const prepared = payload.tasks.map((t, idx) => ({
+          id: 'tsk-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substr(2, 4),
+          title: t.title || 'Nueva Tarea',
+          status: 'TODO' as const,
+          priority: t.priority || 'MEDIUM',
+          projectId: t.projectId || prev.projects[0]?.id || 'PRJ-01',
+          assigneeName: t.assigneeName || 'Edmundo A.',
+          assignee: t.assigneeName || 'Edmundo A.',
+          dueDate: t.dueDate || new Date().toISOString().split('T')[0],
+          tags: t.tags || ['Captura Masiva']
+        }));
+        newTasks = [...prepared, ...prev.tasks];
+      }
+
+      let newDocs = prev.documents;
+      if (payload.documents && payload.documents.length > 0) {
+        const prepared = payload.documents.map((d, idx) => ({
+          id: 'pdoc-' + Date.now() + '-' + idx + '-' + Math.random().toString(36).substr(2, 4),
+          title: d.title || 'Nuevo Documento',
+          format: d.format || 'image',
+          docType: d.docType || 'IMAGE',
+          typeLabel: d.typeLabel || 'Documento',
+          projectId: d.projectId || prev.projects[0]?.id || 'PRJ-01',
+          date: d.date || new Date().toISOString().split('T')[0],
+          updatedAt: d.date || new Date().toISOString().split('T')[0],
+          fileUrl: d.fileUrl || '#',
+          previewUrl: d.previewUrl,
+          description: d.description || 'Documento en captura masiva'
+        }));
+        newDocs = [...prepared, ...prev.documents];
+      }
+
+      return {
+        ...prev,
+        isCustomized: true,
+        categories: newCategories,
+        expenses: newExpenses,
+        tasks: newTasks,
+        documents: newDocs
+      };
+    });
+
+    const count = (payload.expenses?.length || 0) + (payload.tasks?.length || 0) + (payload.documents?.length || 0);
+    triggerToast(`⚡ Captura masiva procesada: ${count} registros guardados exitosamente.`);
+  }, []);
+
   const handleSaveExpense = (data: Partial<Expense>) => {
     setWorkspaceState(prev => {
       const newCategories = data.category && !prev.categories.includes(data.category)
@@ -671,7 +759,8 @@ export default function Home() {
           activeProjectFilter={activeProjectFilter}
           setActiveProjectFilter={setActiveProjectFilter}
           openSpotlight={() => setIsSpotlightOpen(true)}
-          openActionModal={() => handleOpenNewActionModal('doc')}
+          openActionModal={() => handleOpenBatchModal('expense')}
+          openBatchModal={() => handleOpenBatchModal('expense')}
           openProjectModal={handleOpenNewProjectModal}
           onShareLink={handleShareLink}
           onSaveToCloud={handleSaveToCloudManual}
@@ -693,7 +782,7 @@ export default function Home() {
               expenses={workspaceState.expenses}
               projects={workspaceState.projects}
               activeProjectFilter={activeProjectFilter}
-              onAddExpense={() => handleOpenNewActionModal('expense')}
+              onAddExpense={() => handleOpenBatchModal('expense')}
               onEditExpense={(exp) => {
                 setEditType('expense');
                 setEditItem(exp);
@@ -708,7 +797,7 @@ export default function Home() {
               tasks={workspaceState.tasks}
               projects={workspaceState.projects}
               activeProjectFilter={activeProjectFilter}
-              onAddTask={() => handleOpenNewActionModal('task')}
+              onAddTask={() => handleOpenBatchModal('task')}
               onEditTask={(task) => {
                 setEditType('task');
                 setEditItem(task);
@@ -724,7 +813,7 @@ export default function Home() {
               documents={workspaceState.documents}
               projects={workspaceState.projects}
               activeProjectFilter={activeProjectFilter}
-              onAddDocument={() => handleOpenNewActionModal('doc')}
+              onAddDocument={() => handleOpenBatchModal('doc')}
               onEditDocument={(doc) => {
                 setEditType('doc');
                 setEditItem(doc);
@@ -800,37 +889,43 @@ export default function Home() {
         tasks={workspaceState.tasks}
         expenses={workspaceState.expenses}
         documents={workspaceState.documents}
-        onSelectResult={(view) => setCurrentView(view)}
       />
 
       <ProjectModal
         isOpen={isProjectModalOpen}
         onClose={() => setIsProjectModalOpen(false)}
-        onSave={handleSaveProject}
         projectToEdit={projectToEdit}
-        projectCategories={workspaceState.projectCategories}
+        onSaveProject={handleSaveProject}
+        existingCategories={workspaceState.projectCategories}
       />
 
       <ActionModal
         isOpen={isActionModalOpen}
         onClose={() => setIsActionModalOpen(false)}
         projects={workspaceState.projects}
-        onSaveExpense={handleSaveExpense}
-        onSaveTask={handleSaveTask}
-        onSaveDocument={handleSaveDocument}
         categories={workspaceState.categories}
         editType={editType}
         editItem={editItem}
+        onSaveExpense={handleSaveExpense}
+        onSaveTask={handleSaveTask}
+        onSaveDocument={handleSaveDocument}
       />
 
-      {lightboxDoc && (
-        <ImageLightboxModal
-          isOpen={isLightboxOpen}
-          onClose={() => setIsLightboxOpen(false)}
-          document={lightboxDoc}
-          projects={workspaceState.projects}
-        />
-      )}
+      <BatchEntryModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        projects={workspaceState.projects}
+        categories={workspaceState.categories}
+        initialMode={batchInitialMode}
+        onSaveBatch={handleSaveBatch}
+      />
+
+      <ImageLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        document={lightboxDoc}
+        projects={workspaceState.projects}
+      />
     </div>
   );
 }
