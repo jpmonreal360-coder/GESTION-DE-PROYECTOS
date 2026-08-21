@@ -31,6 +31,7 @@ export function Navbar({
   saveStatus = 'idle'
 }: NavbarProps) {
   const activeProject = projects.find(p => p.id === activeProjectFilter);
+  const handlePrimaryNewAction = openBatchModal || openActionModal;
 
   return (
     <header className="h-16 px-4 md:px-7 border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/70 dark:bg-[#121215]/70 backdrop-blur-md flex items-center justify-between gap-4 sticky top-0 z-30">
@@ -109,24 +110,13 @@ export function Navbar({
           <span className="hidden sm:inline">Compartir Link</span>
         </button>
 
-        {/* Mass Batch Capture Button */}
-        {openBatchModal && (
-          <button
-            onClick={openBatchModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 transition active:scale-95 shrink-0 cursor-pointer"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>+ Captura Masiva</span>
-          </button>
-        )}
-
-        {/* Quick Add Button */}
+        {/* Primary Mass Batch Capture Button */}
         <button
-          onClick={openActionModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-semibold shadow-sm transition active:scale-95 shrink-0"
+          onClick={handlePrimaryNewAction}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 transition active:scale-95 shrink-0 cursor-pointer"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Nuevo Registro</span>
+          <Layers className="w-3.5 h-3.5" />
+          <span>+ Nuevo Registro (Captura Masiva)</span>
         </button>
       </div>
     </header>
