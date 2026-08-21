@@ -29,10 +29,6 @@ interface WorkspaceState {
   batchTables: BatchTable[];
 }
 
-interface HomeProps {
-  initialWorkspaceId?: string;
-}
-
 // Module-level stable constants
 const DEFAULT_PROJECTS: Project[] = [
   { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 450000, totalBudget: 450000, spent: 284500, spentBudget: 284500, color: '#007AFF', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
@@ -114,7 +110,7 @@ const DEFAULT_PROJECT_CATEGORIES = [
   'Marketing'
 ];
 
-export default function Home({ initialWorkspaceId }: HomeProps = {}) {
+export default function Home() {
   const [currentView, setCurrentView] = useState<string>('expenses');
   const [activeProjectFilter, setActiveProjectFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -149,7 +145,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareableUrl, setShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [workspaceId, setWorkspaceId] = useState<string>(initialWorkspaceId || 'rc_ws_main');
+  const [workspaceId, setWorkspaceId] = useState<string>('rc_ws_main');
 
   // Single Unified Workspace State
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({
@@ -244,7 +240,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
     let cancelled = false;
 
     async function bootstrap() {
-      let wsId = initialWorkspaceId || 'rc_ws_main';
+      let wsId = 'rc_ws_main';
       let stateFromUrl: any = null;
 
       if (typeof window !== 'undefined') {
@@ -297,7 +293,7 @@ export default function Home({ initialWorkspaceId }: HomeProps = {}) {
 
     void bootstrap();
     return () => { cancelled = true; };
-  }, [initialWorkspaceId, applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
+  }, [applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
 
   // Centralized Automatic Persistence Effect
   useEffect(() => {

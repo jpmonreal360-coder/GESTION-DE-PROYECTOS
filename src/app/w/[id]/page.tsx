@@ -22,5 +22,5 @@ export default function ShortWorkspacePage({ params }: ShortWorkspacePageProps) 
     }
   }, [params]);
 
-  return <Home initialWorkspaceId={workspaceId} />;
+  return <Home />;
 }
