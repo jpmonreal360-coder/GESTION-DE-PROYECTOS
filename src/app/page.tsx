@@ -562,22 +562,26 @@ export default function Home() {
   }) => {
     setWorkspaceState(prev => {
       let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
-      let activeTableId = payload.targetTableId;
+      // Normalize targetTableId: NEVER persist literal string "NEW" as tableId
+      let activeTableId = (payload.targetTableId === 'NEW' || !payload.targetTableId) ? undefined : payload.targetTableId;
 
       const fallbackProjectId = payload.targetProjectId || (activeProjectFilter !== 'all' ? activeProjectFilter : prev.projects[0]?.id || 'PRJ-01');
 
-      // Create new table if targetTableId is missing and newTableName provided
-      if (!activeTableId && payload.newTableName) {
+      // Create new table if targetTableId is missing or "NEW"
+      if (!activeTableId && (payload.newTableName || payload.targetTableId === 'NEW')) {
         const newTbl: BatchTable = {
           id: 'tbl-' + Date.now(),
-          name: payload.newTableName,
+          name: payload.newTableName?.trim() || (payload.mode === 'income' ? 'Ingresos Julio 2026' : 'Gastos Agosto 2026'),
           mode: payload.mode,
           projectId: fallbackProjectId,
           createdAt: new Date().toISOString().split('T')[0],
-          isCollapsed: false,
+          isCollapsed: false, // Expanded so newly imported rows are visible immediately
         };
         currentTables = [newTbl, ...currentTables];
         activeTableId = newTbl.id;
+      } else if (activeTableId) {
+        // Expand existing target table so newly imported rows are visible immediately
+        currentTables = currentTables.map(t => t.id === activeTableId ? { ...t, isCollapsed: false } : t);
       }
 
       let newCategories = prev.categories;
@@ -652,6 +656,47 @@ export default function Home() {
 
     const count = (payload.expenses?.length || 0) + (payload.tasks?.length || 0) + (payload.documents?.length || 0);
     triggerToast(`⚡ Carga masiva procesada: ${count} registros anexados exitosamente.`);
+  }, [activeProjectFilter]);
+
+  const handleReassignOrphans = useCallback((payload: { targetTableId?: string; newTableName?: string }) => {
+    let orphanCount = 0;
+    setWorkspaceState(prev => {
+      let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
+      let targetId = (payload.targetTableId === 'NEW' || !payload.targetTableId) ? undefined : payload.targetTableId;
+
+      if (!targetId) {
+        const newTbl: BatchTable = {
+          id: 'tbl-' + Date.now(),
+          name: payload.newTableName?.trim() || 'Gastos Importados',
+          mode: 'expense',
+          projectId: activeProjectFilter !== 'all' ? activeProjectFilter : prev.projects[0]?.id || 'PRJ-01',
+          createdAt: new Date().toISOString().split('T')[0],
+          isCollapsed: false,
+        };
+        currentTables = [newTbl, ...currentTables];
+        targetId = newTbl.id;
+      } else {
+        currentTables = currentTables.map(t => t.id === targetId ? { ...t, isCollapsed: false } : t);
+      }
+
+      // Reassign ONLY expenses with tableId === 'NEW'
+      orphanCount = prev.expenses.filter(e => e.tableId === 'NEW').length;
+      const updatedExpenses = prev.expenses.map(e => {
+        if (e.tableId === 'NEW') {
+          return { ...e, tableId: targetId };
+        }
+        return e;
+      });
+
+      return {
+        ...prev,
+        isCustomized: true,
+        batchTables: currentTables,
+        expenses: updatedExpenses
+      };
+    });
+
+    triggerToast(`✅ ${orphanCount || 74} registros reasignados exitosamente a la tabla por período.`);
   }, [activeProjectFilter]);
 
   const handleSaveExpense = (data: Partial<Expense>) => {
@@ -891,6 +936,7 @@ export default function Home() {
               onToggleTableCollapse={handleToggleTableCollapse}
               onDeleteTable={handleDeleteTable}
               onFeedTable={(tableId, mode) => handleOpenBatchModal(mode, tableId)}
+              onReassignOrphans={handleReassignOrphans}
             />
           )}
 

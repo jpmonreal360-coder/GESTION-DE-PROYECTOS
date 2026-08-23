@@ -16,6 +16,7 @@ interface BatchTableAccordionProps {
   onEditExpense: (expense: Expense) => void;
   onDeleteExpense: (id: string) => void;
   onBulkDeleteExpenses?: (ids: string[]) => void;
+  onReassignOrphans?: (payload: { targetTableId?: string; newTableName?: string }) => void;
 }
 
 export function BatchTableAccordion({
@@ -29,16 +30,27 @@ export function BatchTableAccordion({
   onFeedTable,
   onEditExpense,
   onDeleteExpense,
-  onBulkDeleteExpenses
+  onBulkDeleteExpenses,
+  onReassignOrphans
 }: BatchTableAccordionProps) {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState<boolean>(false);
 
+  // Recovery Card state for orphaned records (tableId === 'NEW')
+  const [recoveryTargetTableId, setRecoveryTargetTableId] = useState<string>('');
+  const [recoveryNewTableName, setRecoveryNewTableName] = useState<string>('');
+  const [isWarningConfirmed, setIsWarningConfirmed] = useState<boolean>(false);
+
   // Clear selection on context or mode change
   useEffect(() => {
     setSelectedIds([]);
   }, [activeMode, activeProjectFilter]);
+
+  // Detect orphaned expenses with tableId === 'NEW'
+  const orphanExpenses = expenses.filter(e => e.tableId === 'NEW');
+  const orphanCount = orphanExpenses.length;
+  const orphanTotalSum = orphanExpenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
   // Filter tables matching active mode & project filter
   const modeTables = tables.filter(t => {
@@ -75,9 +87,131 @@ export function BatchTableAccordion({
     setIsBulkDeleteModalOpen(false);
   };
 
+  const isValidTarget = recoveryTargetTableId === 'NEW'
+    ? recoveryNewTableName.trim().length > 0
+    : recoveryTargetTableId.length > 0;
+
+  const canReassign = isValidTarget && isWarningConfirmed;
+
+  const formatCurrency = (val: number) => {
+    return `$${(val || 0).toLocaleString('es-MX', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
   return (
     <div className="space-y-4 min-w-0 w-full">
-      
+
+      {/* RECOVERY CARD FOR ORPHANED RECORDS (tableId === 'NEW') */}
+      {activeMode === 'expense' && orphanCount > 0 && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500/40 dark:border-amber-500/30 shadow-lg space-y-4 animate-in fade-in duration-200 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold text-amber-900 dark:text-amber-200">
+                  ⚠️ Se detectaron {orphanCount} registros capturados sin asignación de período ({formatCurrency(orphanTotalSum)})
+                </h3>
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Tus {orphanCount} registros existen en la base de datos y están seguros. Elige o crea la tabla destino para agruparlos y desplegarlos en las tablas por período.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Summary Preview */}
+          <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-neutral-900/80 border border-amber-300 dark:border-amber-900/50 space-y-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 font-semibold text-neutral-800 dark:text-neutral-200">
+              <span>Total Filas: <strong className="text-amber-600 dark:text-amber-400">{orphanCount} transacciones</strong></span>
+              <span>Monto Acumulado: <strong className="text-rose-600 dark:text-rose-400">-{formatCurrency(orphanTotalSum)} MXN</strong></span>
+              <span>Rango de fechas: 📅 {orphanExpenses[0]?.date || '-'} al {orphanExpenses[orphanExpenses.length - 1]?.date || '-'}</span>
+            </div>
+            
+            <div className="border-t border-neutral-200 dark:border-neutral-800 pt-2 space-y-1">
+              <p className="text-[11px] font-bold text-neutral-400">Muestra de registros a asignar:</p>
+              {orphanExpenses.slice(0, 3).map((item, idx) => (
+                <div key={item.id || idx} className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                  <span className="truncate max-w-[240px]">🔹 {item.concept} ({item.category})</span>
+                  <span className="font-mono font-bold text-rose-500">-{formatCurrency(Number(item.amount) || 0)}</span>
+                </div>
+              ))}
+              {orphanCount > 3 && (
+                <p className="text-[10px] text-neutral-400 italic">... y {orphanCount - 3} registros más.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Target Table Selector */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
+                Tabla / Período Destino Obligatorio:
+              </label>
+              <select
+                value={recoveryTargetTableId}
+                onChange={e => setRecoveryTargetTableId(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-neutral-800 border border-amber-400 dark:border-amber-700 text-xs font-semibold outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">-- Selecciona o crea una tabla destino --</option>
+                <option value="NEW">➕ Crear Nueva Tabla de Período...</option>
+                {modeTables.map(t => (
+                  <option key={t.id} value={t.id}>
+                    📁 {t.name} ({t.createdAt})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {recoveryTargetTableId === 'NEW' && (
+              <div>
+                <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
+                  Nombre de la Nueva Tabla:
+                </label>
+                <input
+                  type="text"
+                  value={recoveryNewTableName}
+                  onChange={e => setRecoveryNewTableName(e.target.value)}
+                  placeholder="Ej. Gastos Agosto 2026..."
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-neutral-800 border border-amber-400 dark:border-amber-700 text-xs font-bold outline-none"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Mandatory Checkbox Confirmation & Action Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-amber-300/60 dark:border-amber-900/60">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+              <input
+                type="checkbox"
+                checked={isWarningConfirmed}
+                onChange={e => setIsWarningConfirmed(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-600 outline-none cursor-pointer shrink-0"
+              />
+              <span>Confirmación explícita: Deseo reasignar únicamente los {orphanCount} registros con tableId="NEW" conservando todos mis otros datos intactos.</span>
+            </label>
+
+            <button
+              type="button"
+              disabled={!canReassign}
+              onClick={() => {
+                if (onReassignOrphans && canReassign) {
+                  onReassignOrphans({
+                    targetTableId: recoveryTargetTableId,
+                    newTableName: recoveryNewTableName
+                  });
+                }
+              }}
+              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-amber-600/30 transition shrink-0"
+            >
+              Asignar registros sin período
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Bulk Selection Action Bar */}
       {selectedIds.length > 0 && (
         <div className="p-3 sm:p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150 shadow-sm">
