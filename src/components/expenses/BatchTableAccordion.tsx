@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BatchTable, Expense, Project } from '@/types';
-import { ChevronDown, ChevronRight, Plus, Trash2, Edit2, TrendingUp, TrendingDown, Layers, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown, Layers, AlertTriangle } from 'lucide-react';
 
 interface BatchTableAccordionProps {
   tables: BatchTable[];
@@ -15,6 +15,7 @@ interface BatchTableAccordionProps {
   onFeedTable: (tableId: string, mode: 'income' | 'expense') => void;
   onEditExpense: (expense: Expense) => void;
   onDeleteExpense: (id: string) => void;
+  onBulkDeleteExpenses?: (ids: string[]) => void;
 }
 
 export function BatchTableAccordion({
@@ -28,7 +29,17 @@ export function BatchTableAccordion({
   onFeedTable,
   onEditExpense,
   onDeleteExpense,
+  onBulkDeleteExpenses
 }: BatchTableAccordionProps) {
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState<boolean>(false);
+
+  // Clear selection on context or mode change
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [activeMode, activeProjectFilter]);
+
   // Filter tables matching active mode & project filter
   const modeTables = tables.filter(t => {
     const matchesMode = t.mode === activeMode;
@@ -39,11 +50,64 @@ export function BatchTableAccordion({
     return matchesMode && matchesProject;
   });
 
-  // Helper to get project details
   const getProject = (projectId: string) => projects.find(p => p.id === projectId);
+
+  const handleToggleSelectItem = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectTable = (tableItemIds: string[], forceCheck: boolean) => {
+    if (forceCheck) {
+      const merged = Array.from(new Set([...selectedIds, ...tableItemIds]));
+      setSelectedIds(merged);
+    } else {
+      setSelectedIds(prev => prev.filter(id => !tableItemIds.includes(id)));
+    }
+  };
+
+  const handleConfirmBulkDelete = () => {
+    if (onBulkDeleteExpenses && selectedIds.length > 0) {
+      onBulkDeleteExpenses(selectedIds);
+    }
+    setSelectedIds([]);
+    setIsBulkDeleteModalOpen(false);
+  };
 
   return (
     <div className="space-y-4 min-w-0 w-full">
+      
+      {/* Top Bulk Selection Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="p-3 sm:p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-bold">
+              {selectedIds.length} seleccionadas
+            </span>
+            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              en las tablas de {activeMode === 'income' ? 'Ingresos' : 'Gastos'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition"
+            >
+              Deseleccionar
+            </button>
+            <button
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-600/30 transition flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar seleccionadas ({selectedIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {modeTables.length === 0 ? (
         <div className="p-6 sm:p-8 text-center rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/40 min-w-0">
           <Layers className="w-9 h-9 sm:w-10 sm:h-10 text-neutral-400 mx-auto mb-3 opacity-60" />
@@ -73,6 +137,8 @@ export function BatchTableAccordion({
 
           const totalSum = tableExpenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
           const isCollapsed = table.isCollapsed ?? false;
+          const tableItemIds = tableExpenses.map(e => e.id);
+          const isAllTableSelected = tableExpenses.length > 0 && tableExpenses.every(e => selectedIds.includes(e.id));
 
           return (
             <div
@@ -101,42 +167,37 @@ export function BatchTableAccordion({
                     )}
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-xs sm:text-sm font-bold truncate text-neutral-900 dark:text-neutral-100">
-                        {table.name}
-                      </h3>
-                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0">
-                        {tableExpenses.length} reg.
-                      </span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-neutral-400 flex items-center gap-1.5 mt-0.5 truncate">
-                      <Calendar className="w-3 h-3 shrink-0" />
-                      <span className="truncate">Creada el {table.createdAt}</span>
+                  <div className="min-w-0">
+                    <h3 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                      {table.name}
+                    </h3>
+                    <p className="text-[10px] sm:text-[11px] text-neutral-400 flex items-center gap-2 truncate">
+                      <span>Período: {table.createdAt}</span>
+                      <span>•</span>
+                      <span>{tableExpenses.length} entradas</span>
                     </p>
                   </div>
                 </div>
 
-                {/* Right Side: Total Badge & Actions */}
-                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-200/50 dark:border-neutral-800/50" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-3 justify-between sm:justify-end min-w-0 shrink-0">
                   <div className="text-left sm:text-right">
-                    <span className="text-[10px] font-semibold text-neutral-400 block uppercase tracking-wider">
-                      Total Acumulado
-                    </span>
+                    <span className="text-[10px] text-neutral-400 block font-medium">Acumulado Tabla</span>
                     <span
                       className={`text-xs sm:text-sm font-extrabold ${
-                        activeMode === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                        activeMode === 'income'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-neutral-900 dark:text-neutral-100'
                       }`}
                     >
-                      ${totalSum.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+                      {activeMode === 'income' ? '+' : '-'}${totalSum.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => onFeedTable(table.id, activeMode)}
-                      className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
-                      title="Alimentar esta tabla con nuevas filas masivas"
+                      className="px-2.5 py-1 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold transition flex items-center gap-1 shrink-0"
+                      title="Alimentar datos a esta tabla"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span className="hidden xs:inline sm:inline">+ Alimentar</span>
@@ -153,7 +214,7 @@ export function BatchTableAccordion({
                 </div>
               </div>
 
-              {/* Accordion Content Grid (Collapsed / Expanded) */}
+              {/* Accordion Content Grid */}
               {!isCollapsed && (
                 <div className="border-t border-neutral-200/60 dark:border-neutral-800/60 p-3 sm:p-4 bg-neutral-50/50 dark:bg-black/20 animate-in fade-in duration-150 min-w-0">
                   {tableExpenses.length === 0 ? (
@@ -165,7 +226,16 @@ export function BatchTableAccordion({
                       <table className="w-full text-left text-xs min-w-[620px]">
                         <thead>
                           <tr className="border-b border-neutral-200 dark:border-neutral-800 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                            <th className="pb-2 pl-2">Concepto</th>
+                            <th className="pb-2 pl-2 w-8">
+                              <input
+                                type="checkbox"
+                                checked={isAllTableSelected}
+                                onChange={e => handleToggleSelectTable(tableItemIds, e.target.checked)}
+                                className="w-4 h-4 rounded text-blue-600 outline-none cursor-pointer"
+                                title="Seleccionar/Deseleccionar todas las filas de esta tabla"
+                              />
+                            </th>
+                            <th className="pb-2">Concepto</th>
                             <th className="pb-2">Proyecto</th>
                             <th className="pb-2">Categoría</th>
                             <th className="pb-2">Fecha</th>
@@ -176,12 +246,22 @@ export function BatchTableAccordion({
                         <tbody className="divide-y divide-neutral-200/50 dark:divide-neutral-800/50">
                           {tableExpenses.map((item) => {
                             const prj = getProject(item.projectId);
+                            const isSelected = selectedIds.includes(item.id);
+
                             return (
                               <tr
                                 key={item.id}
-                                className="hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40 transition group"
+                                className={`transition group ${isSelected ? 'bg-purple-500/10 dark:bg-purple-950/30' : 'hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40'}`}
                               >
-                                <td className="py-2.5 pl-2 font-medium text-neutral-900 dark:text-neutral-100">
+                                <td className="py-2.5 pl-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleToggleSelectItem(item.id)}
+                                    className="w-4 h-4 rounded text-blue-600 outline-none cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2.5 font-medium text-neutral-900 dark:text-neutral-100">
                                   {item.concept}
                                 </td>
                                 <td className="py-2.5">
@@ -219,11 +299,12 @@ export function BatchTableAccordion({
                                       className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
                                       title="Editar registro"
                                     >
-                                      <Edit2 className="w-3.5 h-3.5" />
+                                      <span className="sr-only">Editar</span>
+                                      ✏️
                                     </button>
                                     <button
                                       onClick={() => onDeleteExpense(item.id)}
-                                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-950/50 text-neutral-400 hover:text-red-600"
+                                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/40 text-neutral-400 hover:text-red-600"
                                       title="Eliminar registro"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -242,6 +323,46 @@ export function BatchTableAccordion({
             </div>
           );
         })
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md">
+          <div className="relative w-[calc(100vw-1.5rem)] max-w-md bg-white dark:bg-[#16161a] rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  ¿Eliminar {selectedIds.length} entradas seleccionadas?
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Confirmación de eliminación múltiple
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+              Esta acción eliminará únicamente las <strong>{selectedIds.length} transacciones seleccionadas</strong>. Todos tus otros registros, proyectos, tareas y documentos permanecerán totalmente intactos.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmBulkDelete}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-600/30 transition"
+              >
+                Confirmar Eliminación ({selectedIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

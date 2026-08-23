@@ -699,6 +699,18 @@ export default function Home() {
     }
   };
 
+  const handleBulkDeleteExpenses = useCallback((expenseIds: string[]) => {
+    if (!expenseIds || expenseIds.length === 0) return;
+
+    setWorkspaceState(prev => ({
+      ...prev,
+      isCustomized: true,
+      expenses: prev.expenses.filter(e => !expenseIds.includes(e.id))
+    }));
+
+    triggerToast(`🗑️ ${expenseIds.length} transacciones eliminadas correctamente.`);
+  }, []);
+
   const handleSaveTask = (data: Partial<Task>) => {
     setWorkspaceState(prev => {
       let newTasks: Task[];
@@ -875,6 +887,7 @@ export default function Home() {
                 setIsActionModalOpen(true);
               }}
               onDeleteExpense={handleDeleteExpense}
+              onBulkDeleteExpenses={handleBulkDeleteExpenses}
               onToggleTableCollapse={handleToggleTableCollapse}
               onDeleteTable={handleDeleteTable}
               onFeedTable={(tableId, mode) => handleOpenBatchModal(mode, tableId)}
