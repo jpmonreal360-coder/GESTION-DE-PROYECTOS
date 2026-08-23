@@ -23,5 +23,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "version_1_backup", "version_2_backup", "version_3_backup", "version_4_backup", "version_5_backup", "version_6_backup", "version_7_backup", "version_8_backup", "version_9_backup"]
+  "exclude": ["node_modules", "version_1_backup", "version_2_backup", "version_3_backup", "version_4_backup", "version_5_backup", "version_6_backup", "version_7_backup", "version_8_backup"]
 }
