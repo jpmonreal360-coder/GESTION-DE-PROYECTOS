@@ -1,4 +1,4 @@
-// Universal Real-time Multi-Device Sync Engine (Upstash Redis Backend & Strict Polling Cleanup)
+// Universal Real-time Multi-Device Sync Engine (Cloud-First & Concurrency Protected)
 
 export interface SyncPayload {
   workspaceId: string;
@@ -12,9 +12,29 @@ export interface SyncPayload {
   projectCategories: any[];
   batchTables?: any[];
   updatedAt: number;
+  revision?: number;
+  expectedRevision?: number;
+  schemaVersion?: number;
+  checksum?: string;
+  source?: string;
 }
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+export type SaveStatus =
+  | 'idle'
+  | 'loading-remote'
+  | 'ready'
+  | 'saving'
+  | 'saved'
+  | 'offline-readonly'
+  | 'conflict'
+  | 'error';
+
+export interface ConflictDetails {
+  serverRevision: number;
+  expectedRevision: number;
+  updatedAt: number;
+  checksum?: string;
+}
 
 // URL-Safe Encoder & Decoder
 export const urlSafeEncodeObj = (obj: any): string => {
@@ -38,8 +58,10 @@ class RealtimeSyncEngine {
   private broadcastChannel: BroadcastChannel | null = null;
   private isBroadcasting: boolean = false;
   private lastRemoteTimestamp: number = 0;
+  private lastRemoteRevision: number = 1;
+  private currentStatus: SaveStatus = 'idle';
   private onStateReceivedCallback: ((data: SyncPayload) => void) | null = null;
-  private onStatusChangeCallback: ((status: SaveStatus) => void) | null = null;
+  private onStatusChangeCallback: ((status: SaveStatus, conflict?: ConflictDetails) => void) | null = null;
   private pollIntervalId: number | null = null;
   private activeWorkspaceId: string = 'rc_ws_main';
 
@@ -48,9 +70,11 @@ class RealtimeSyncEngine {
       this.broadcastChannel = new BroadcastChannel('rc_proyectos_realtime_channel');
       this.broadcastChannel.onmessage = (event) => {
         if (!this.isBroadcasting && event.data && this.onStateReceivedCallback) {
+          const remoteRev = Number(event.data.revision || 0);
           const remoteTs = Number(event.data.updatedAt || 0);
-          if (remoteTs > this.lastRemoteTimestamp) {
+          if (remoteRev > this.lastRemoteRevision || (remoteRev === this.lastRemoteRevision && remoteTs > this.lastRemoteTimestamp)) {
             this.lastRemoteTimestamp = remoteTs;
+            if (remoteRev > 0) this.lastRemoteRevision = remoteRev;
             this.onStateReceivedCallback(event.data);
           }
         }
@@ -68,33 +92,48 @@ class RealtimeSyncEngine {
     return this.activeWorkspaceId;
   }
 
+  public getRevision(): number {
+    return this.lastRemoteRevision;
+  }
+
   public setLastRemoteTimestamp(ts: number) {
     if (ts > this.lastRemoteTimestamp) {
       this.lastRemoteTimestamp = ts;
     }
   }
 
-  public onStatusChange(callback: (status: SaveStatus) => void) {
-    this.onStatusChangeCallback = callback;
-  }
-
-  private setSaveStatus(status: SaveStatus) {
-    if (this.onStatusChangeCallback) {
-      this.onStatusChangeCallback(status);
+  public setLastRemoteRevision(rev: number) {
+    if (rev > this.lastRemoteRevision) {
+      this.lastRemoteRevision = rev;
     }
   }
 
-  // Subscribe to Cloud & Local real-time changes with proper interval cleanup
+  public onStatusChange(callback: (status: SaveStatus, conflict?: ConflictDetails) => void) {
+    this.onStatusChangeCallback = callback;
+  }
+
+  private setSaveStatus(status: SaveStatus, conflict?: ConflictDetails) {
+    this.currentStatus = status;
+    if (this.onStatusChangeCallback) {
+      this.onStatusChangeCallback(status, conflict);
+    }
+  }
+
+  public getStatus(): SaveStatus {
+    return this.currentStatus;
+  }
+
+  // Subscribe to Cloud changes with strictly read-only polling
   public subscribe(onStateReceived: (data: SyncPayload) => void): () => void {
     this.onStateReceivedCallback = onStateReceived;
     void this.fetchFromCloud();
 
     if (!this.pollIntervalId && typeof window !== 'undefined') {
       this.pollIntervalId = window.setInterval(() => {
-        if (!this.isBroadcasting) {
+        if (!this.isBroadcasting && this.currentStatus !== 'conflict') {
           void this.fetchFromCloud();
         }
-      }, 2000);
+      }, 3000);
     }
 
     return () => {
@@ -106,7 +145,7 @@ class RealtimeSyncEngine {
     };
   }
 
-  // Direct Anti-Cache Fetch targeting workspaceId API Route
+  // Direct Anti-Cache Read targeting workspaceId API Route
   public async fetchFromCloud(): Promise<SyncPayload | null> {
     const headers = {
       'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
@@ -118,95 +157,161 @@ class RealtimeSyncEngine {
       const apiUrl = getNativeApiUrl(this.activeWorkspaceId);
       const res = await fetch(apiUrl, { method: 'GET', headers, cache: 'no-store' }).catch(() => null);
 
-      if (res && res.status === 200) {
-        const data = await res.json();
-        // A notFound response MUST NEVER erase a workspace that has already been hydrated
-        if (data && data.notFound) {
+      if (res) {
+        if (res.status === 503) {
+          this.setSaveStatus('offline-readonly');
           return null;
         }
 
-        if (data && Array.isArray(data.projects)) {
-          const remoteTs = Number(data.updatedAt || 0);
-          if (remoteTs > this.lastRemoteTimestamp) {
-            this.lastRemoteTimestamp = remoteTs;
-            if (this.onStateReceivedCallback && !this.isBroadcasting) {
-              this.onStateReceivedCallback(data);
-            }
+        if (res.status === 200) {
+          const data = await res.json();
+          if (data && data.notFound) {
+            return null;
           }
-          return data;
+
+          if (data && Array.isArray(data.projects)) {
+            const remoteTs = Number(data.updatedAt || 0);
+            const remoteRev = Number(data.revision || 1);
+
+            if (remoteRev > this.lastRemoteRevision || (remoteRev === this.lastRemoteRevision && remoteTs > this.lastRemoteTimestamp)) {
+              this.lastRemoteTimestamp = remoteTs;
+              this.lastRemoteRevision = remoteRev;
+              if (this.onStateReceivedCallback && !this.isBroadcasting) {
+                this.onStateReceivedCallback(data);
+              }
+            }
+            if (this.currentStatus === 'loading-remote' || this.currentStatus === 'offline-readonly') {
+              this.setSaveStatus('ready');
+            }
+            return data;
+          }
         }
       }
     } catch (err) {
       console.warn('Error en fetchFromCloud:', err);
+      this.setSaveStatus('offline-readonly');
     }
     return null;
   }
 
-  // Explicit Save to Cloud: Strictly increasing timestamp & explicit projects array validation
-  public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>): Promise<boolean> {
-    if (this.isBroadcasting) {
-      return false;
+  // Explicit Save to Cloud with Monotonic Revision Check & 409 Conflict Protection
+  public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>): Promise<{ success: boolean; conflict?: boolean; offline?: boolean }> {
+    if (this.isBroadcasting || this.currentStatus === 'offline-readonly') {
+      return { success: false, offline: this.currentStatus === 'offline-readonly' };
     }
+
     this.isBroadcasting = true;
     this.setSaveStatus('saving');
 
     const now = Math.max(Date.now(), this.lastRemoteTimestamp + 1);
+    const expectedRevision = this.lastRemoteRevision;
 
     const payload: SyncPayload = {
       ...stateObj,
       workspaceId: this.activeWorkspaceId,
+      expectedRevision,
       updatedAt: now
     };
 
     let serverSaved = false;
 
     try {
-      // 1. Instant Local Broadcast (0ms)
+      // 1. Instant Local Broadcast across browser tabs (0ms)
       if (this.broadcastChannel) {
         this.broadcastChannel.postMessage(payload);
       }
 
-      // 2. Primary Server Write: Persistent API Route (/api/workspace/[id])
+      // 2. Primary Server CAS Write
       const apiUrl = getNativeApiUrl(this.activeWorkspaceId);
       const apiRes = await fetch(apiUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'If-Match': `"${expectedRevision}"`
+        },
         body: JSON.stringify(payload)
       }).catch(() => null);
 
-      if (apiRes && (apiRes.status === 200 || apiRes.status === 201)) {
-        const resData = await apiRes.json().catch(() => null);
-        if (resData && Array.isArray(resData.projects)) {
-          serverSaved = true;
-          const serverTs = Number(resData.updatedAt || now);
-          this.lastRemoteTimestamp = Math.max(this.lastRemoteTimestamp, serverTs);
+      if (apiRes) {
+        if (apiRes.status === 409) {
+          // CONFLICT DETECTED: Lightweight 409 response
+          const conflictData: ConflictDetails = await apiRes.json().catch(() => ({
+            serverRevision: expectedRevision + 1,
+            expectedRevision,
+            updatedAt: now
+          }));
+
+          this.setSaveStatus('conflict', conflictData);
+          return { success: false, conflict: true };
+        }
+
+        if (apiRes.status === 503) {
+          this.setSaveStatus('offline-readonly');
+          return { success: false, offline: true };
+        }
+
+        if (apiRes.status === 200 || apiRes.status === 201) {
+          const resData = await apiRes.json().catch(() => null);
+          if (resData && Array.isArray(resData.projects)) {
+            serverSaved = true;
+            const serverTs = Number(resData.updatedAt || now);
+            const serverRev = Number(resData.revision || expectedRevision + 1);
+            this.lastRemoteTimestamp = Math.max(this.lastRemoteTimestamp, serverTs);
+            this.lastRemoteRevision = Math.max(this.lastRemoteRevision, serverRev);
+          }
         }
       }
 
       if (serverSaved) {
         this.setSaveStatus('saved');
-        setTimeout(() => this.setSaveStatus('idle'), 3000);
+        setTimeout(() => {
+          if (this.currentStatus === 'saved') this.setSaveStatus('ready');
+        }, 3000);
+        return { success: true };
       } else {
         this.setSaveStatus('error');
-        setTimeout(() => this.setSaveStatus('idle'), 4000);
+        setTimeout(() => {
+          if (this.currentStatus === 'error') this.setSaveStatus('ready');
+        }, 4000);
+        return { success: false };
       }
 
     } catch (err) {
       console.error('Error guardando en la nube:', err);
       this.setSaveStatus('error');
-      setTimeout(() => this.setSaveStatus('idle'), 4000);
-      serverSaved = false;
+      setTimeout(() => {
+        if (this.currentStatus === 'error') this.setSaveStatus('ready');
+      }, 4000);
+      return { success: false };
     } finally {
       setTimeout(() => {
         this.isBroadcasting = false;
       }, 300);
     }
+  }
 
-    return serverSaved;
+  // Pre-mutation backup helper before bulk/destructive operations
+  public async createPreMutationBackup(reason: string): Promise<boolean> {
+    try {
+      const backupUrl = `/api/workspace/${encodeURIComponent(this.activeWorkspaceId)}/backups`;
+      const res = await fetch(backupUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      }).catch(() => null);
+
+      if (res && (res.status === 200 || res.status === 201)) {
+        const data = await res.json().catch(() => null);
+        return Boolean(data && data.success);
+      }
+    } catch (e) {
+      console.warn('Fallo al crear backup previo:', e);
+    }
+    return false;
   }
 
   public publish(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>) {
-    this.saveToCloud(stateObj);
+    void this.saveToCloud(stateObj);
   }
 }
 

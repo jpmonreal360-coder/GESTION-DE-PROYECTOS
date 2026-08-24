@@ -140,10 +140,20 @@ export function Navbar({
               <span>Guardado</span>
             </span>
           )}
-          {saveStatus === 'idle' && (
+          {(saveStatus === 'idle' || saveStatus === 'ready') && (
             <span className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/60 px-2.5 py-0.5 rounded-full">
               <Cloud className="w-3.5 h-3.5" />
               <span>Sincronizado</span>
+            </span>
+          )}
+          {saveStatus === 'offline-readonly' && (
+            <span className="flex items-center gap-1.5 text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 px-2.5 py-0.5 rounded-full">
+              <span>⚠️ Sin Conexión (Lectura)</span>
+            </span>
+          )}
+          {saveStatus === 'conflict' && (
+            <span className="flex items-center gap-1.5 text-red-600 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/60 px-2.5 py-0.5 rounded-full">
+              <span>⚠️ Conflicto</span>
             </span>
           )}
           {saveStatus === 'error' && (

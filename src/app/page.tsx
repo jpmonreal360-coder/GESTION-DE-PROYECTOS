@@ -143,6 +143,7 @@ export default function Home() {
   const [shareableUrl, setShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [workspaceId, setWorkspaceId] = useState<string>('rc_ws_main');
+  const [conflictDetails, setConflictDetails] = useState<any>(null);
 
   // Single Unified Workspace State
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({
@@ -227,12 +228,34 @@ export default function Home() {
 
   // Subscribe to save status updates
   useEffect(() => {
-    realtimeSync.onStatusChange((status) => {
+    realtimeSync.onStatusChange((status, conflict) => {
       setSaveStatus(status);
+      if (conflict) {
+        setConflictDetails(conflict);
+      }
     });
   }, []);
 
-  // Single asynchronous bootstrap useEffect on mount
+  // Export local state JSON backup handler
+  const handleExportBackupJson = () => {
+    const backupObj = {
+      workspaceId,
+      revision: realtimeSync.getRevision(),
+      updatedAt: Date.now(),
+      state: workspaceState
+    };
+    const jsonStr = JSON.stringify(backupObj, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rc_ws_${workspaceId}_rev${realtimeSync.getRevision()}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    triggerToast('📥 Snapshot exportado como archivo JSON.');
+  };
+
+  // Single asynchronous bootstrap useEffect on mount (CLOUD-FIRST)
   useEffect(() => {
     let cancelled = false;
 
@@ -277,11 +300,14 @@ export default function Home() {
           if (remote && Array.isArray(remote.projects)) {
             applyWorkspaceState(remote);
           } else {
+            // NO PUT DEFAULTS ON FAILURE: strictly load local fallback without triggering cloud write
+            skipNextCloudSave.current = true;
             loadLocalFallbackOrEmptyState();
           }
         }
       } catch (error) {
         console.error("Error al hidratar el workspace", error);
+        skipNextCloudSave.current = true;
         loadLocalFallbackOrEmptyState();
       } finally {
         if (!cancelled) setHydrated(true);
@@ -292,9 +318,9 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [applyWorkspaceState, loadLocalFallbackOrEmptyState, queueSave]);
 
-  // Centralized Automatic Persistence Effect
+  // Centralized Automatic Persistence Effect (BLOCKED ON OFFLINE/CONFLICT)
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || saveStatus === 'offline-readonly' || saveStatus === 'conflict') return;
 
     localStorage.setItem('rc_is_customized', 'true');
     localStorage.setItem('rc_projects', JSON.stringify(workspaceState.projects));
@@ -325,7 +351,7 @@ export default function Home() {
       console.error("Error al guardar en la nube", error);
       setSaveStatus("error");
     });
-  }, [hydrated, workspaceState, queueSave]);
+  }, [hydrated, workspaceState, queueSave, saveStatus]);
 
   // Subscription/Polling installed ONLY AFTER hydrated === true
   useEffect(() => {
@@ -498,11 +524,12 @@ export default function Home() {
     triggerToast('✅ Proyecto guardado exitosamente.');
   };
 
-  const handleDeleteProject = (id: string) => {
+  const handleDeleteProject = async (id: string) => {
     const prj = workspaceState.projects.find(p => p.id === id);
     if (!prj) return;
 
     if (confirm(`¿Eliminar el proyecto "${prj.name}"? Se borrarán sus transacciones, tareas y documentos asociados.`)) {
+      await realtimeSync.createPreMutationBackup('DELETE_PROJECT');
       setWorkspaceState(prev => ({
         ...prev,
         isCustomized: true,
@@ -547,7 +574,7 @@ export default function Home() {
   };
 
   // Mass Batch Save Handler with Atomic Append & Period Table Link & Project Link
-  const handleSaveBatch = useCallback((payload: {
+  const handleSaveBatch = useCallback(async (payload: {
     mode: BatchMode;
     targetTableId?: string;
     newTableName?: string;
@@ -557,6 +584,7 @@ export default function Home() {
     documents?: Partial<Document>[];
     newCategories?: string[];
   }) => {
+    await realtimeSync.createPreMutationBackup('MASS_BATCH_IMPORT');
     setWorkspaceState(prev => {
       let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
       // Normalize targetTableId: NEVER persist literal string "NEW" as tableId
@@ -655,12 +683,13 @@ export default function Home() {
     triggerToast(`⚡ Carga masiva procesada: ${count} registros anexados exitosamente.`);
   }, [activeProjectFilter]);
 
-  const handleReassignOrphanGroup = useCallback((payload: {
+  const handleReassignOrphanGroup = useCallback(async (payload: {
     groupTableId: string;
     targetProjectId: string;
     targetTableId?: string;
     newTableName?: string;
   }) => {
+    await realtimeSync.createPreMutationBackup('REASSIGN_ORPHAN_GROUP');
     let count = 0;
     setWorkspaceState(prev => {
       let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
@@ -704,8 +733,9 @@ export default function Home() {
     triggerToast(`✅ Lote de ${count} registros reasignado exitosamente.`);
   }, []);
 
-  const handleDeleteOrphanGroup = useCallback((groupTableId: string, expenseIds: string[]) => {
+  const handleDeleteOrphanGroup = useCallback(async (groupTableId: string, expenseIds: string[]) => {
     if (!expenseIds || expenseIds.length === 0) return;
+    await realtimeSync.createPreMutationBackup('DELETE_ORPHAN_GROUP');
     const idsToDelete = new Set(expenseIds);
 
     setWorkspaceState(prev => ({
@@ -717,7 +747,7 @@ export default function Home() {
     triggerToast(`🗑️ Lote de ${expenseIds.length} registros huérfanos eliminado definitivamente.`);
   }, []);
 
-  const handleDeleteTableWithOptions = useCallback((payload: {
+  const handleDeleteTableWithOptions = useCallback(async (payload: {
     tableId: string;
     action: 'delete_all' | 'reassign';
     targetProjectId?: string;
@@ -726,6 +756,7 @@ export default function Home() {
   }) => {
     const tbl = workspaceState.batchTables.find(t => t.id === payload.tableId);
     if (!tbl) return;
+    await realtimeSync.createPreMutationBackup('DELETE_TABLE_WITH_OPTIONS');
 
     setWorkspaceState(prev => {
       let currentTables = (prev.batchTables || []).filter(t => t.id !== payload.tableId);
@@ -1117,6 +1148,66 @@ export default function Home() {
               >
                 {isCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 <span>{isCopied ? 'Copiado' : 'Copiar'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Read-Only Top Banner */}
+      {saveStatus === 'offline-readonly' && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-600 text-white text-xs font-semibold px-4 py-2 flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>⚠️ Modo Lectura Sin Conexión - Las escrituras remotas están deshabilitadas para proteger la base de datos.</span>
+          </div>
+          <button
+            onClick={() => void realtimeSync.fetchFromCloud()}
+            className="px-3 py-1 bg-black/30 hover:bg-black/40 rounded-lg text-white font-bold transition"
+          >
+            Reintentar Conexión
+          </button>
+        </div>
+      )}
+
+      {/* 409 Conflict Resolution Modal */}
+      {saveStatus === 'conflict' && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1C1C1E] border border-red-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <AlertTriangle className="w-7 h-7 shrink-0" />
+              <div>
+                <h3 className="text-lg font-bold">Conflicto de Concurrencia Detectado</h3>
+                <p className="text-xs text-neutral-500">
+                  Revisión en Servidor: Rev. {conflictDetails?.serverRevision || 'N/A'} | Tu Versión Intentada: Rev. {conflictDetails?.expectedRevision || 'N/A'}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+              Otra sesión o dispositivo ha actualizado los datos en la nube. Para prevenir reversiones accidentales, se ha pausado el guardado automático de tu sesión.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                onClick={async () => {
+                  const remote = await realtimeSync.fetchFromCloud();
+                  if (remote) {
+                    applyWorkspaceState(remote);
+                    setSaveStatus('ready');
+                    setConflictDetails(null);
+                    triggerToast('🔄 Datos actualizados desde la nube.');
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Recargar datos de la nube</span>
+              </button>
+              <button
+                onClick={handleExportBackupJson}
+                className="px-4 py-2.5 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exportar JSON Local</span>
               </button>
             </div>
           </div>
