@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Layers, DollarSign, Calendar, FileText, CheckCircle2, AlertCircle, FolderPlus, Clipboard, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import { Project, Expense, Task, Document, BatchTable } from '@/types';
 import { parseImportText, ParseImportResult } from '@/lib/parseImportText';
+import { getExpenseFingerprint } from '@/lib/orphanHelpers';
 
 export type BatchMode = 'doc' | 'income' | 'expense' | 'task';
 
@@ -22,6 +23,15 @@ export interface BatchRowData {
   docUrl: string;
 }
 
+export interface DuplicateWarningData {
+  allExpenses: Partial<Expense>[];
+  nonDuplicateExpenses: Partial<Expense>[];
+  duplicateExpenses: Partial<Expense>[];
+  duplicateCount: number;
+  duplicateSum: number;
+  newCategories?: string[];
+}
+
 interface BatchEntryModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +40,7 @@ interface BatchEntryModalProps {
   tables?: BatchTable[];
   targetTableId?: string;
   initialMode?: BatchMode;
+  existingExpenses?: Expense[];
   onSaveBatch: (payload: {
     mode: BatchMode;
     targetTableId?: string;
@@ -57,8 +68,10 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
   tables = [],
   targetTableId = '',
   initialMode = 'expense',
+  existingExpenses = [],
   onSaveBatch,
 }) => {
+  const [duplicateWarningData, setDuplicateWarningData] = useState<DuplicateWarningData | null>(null);
   const [mode, setMode] = useState<BatchMode>(initialMode);
   const [rows, setRows] = useState<BatchRowData[]>([]);
 
@@ -223,6 +236,43 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
         };
       });
 
+      // Duplicate detection against existing expenses
+      if (existingExpenses && existingExpenses.length > 0) {
+        const existingSet = new Set(existingExpenses.map(getExpenseFingerprint));
+        const duplicateList: Partial<Expense>[] = [];
+        const nonDuplicateList: Partial<Expense>[] = [];
+
+        expensesPayload.forEach(exp => {
+          const fp = getExpenseFingerprint({
+            projectId: exp.projectId || selectedProjectId,
+            type: exp.type,
+            concept: exp.concept,
+            amount: exp.amount,
+            category: exp.category,
+            date: exp.date
+          });
+
+          if (existingSet.has(fp)) {
+            duplicateList.push(exp);
+          } else {
+            nonDuplicateList.push(exp);
+          }
+        });
+
+        if (duplicateList.length > 0) {
+          const duplicateSum = duplicateList.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+          setDuplicateWarningData({
+            allExpenses: expensesPayload,
+            nonDuplicateExpenses: nonDuplicateList,
+            duplicateExpenses: duplicateList,
+            duplicateCount: duplicateList.length,
+            duplicateSum,
+            newCategories: newCategories.length > 0 ? newCategories : undefined
+          });
+          return;
+        }
+      }
+
       onSaveBatch({
         mode,
         targetTableId: selectedTableId,
@@ -231,6 +281,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
         expenses: expensesPayload,
         newCategories: newCategories.length > 0 ? newCategories : undefined,
       });
+      onClose();
     } else if (mode === 'task') {
       const tasksPayload: Partial<Task>[] = validRows.map(r => ({
         title: r.concept.trim(),
@@ -729,6 +780,95 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                   </span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DUPLICATE IMPORT WARNING MODAL */}
+      {duplicateWarningData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md">
+          <div className="relative w-[calc(100vw-1.5rem)] max-w-md bg-white dark:bg-[#16161a] rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  ⚠️ Registros Duplicados Detectados
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  {duplicateWarningData.duplicateCount} registros coinciden exactamente con movimientos existentes
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
+              <p className="font-bold">
+                Monto duplicado: ${duplicateWarningData.duplicateSum.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
+              </p>
+              <p className="text-[11px]">
+                Coinciden exactamente en Proyecto, Tipo, Concepto, Monto, Categoría y Fecha con transacciones guardadas.
+              </p>
+            </div>
+
+            <div className="space-y-1 text-xs bg-neutral-50 dark:bg-neutral-900 p-3 rounded-2xl border border-neutral-200 dark:border-neutral-800">
+              <p className="font-bold text-neutral-400 text-[10px] uppercase">Muestra de duplicados ({duplicateWarningData.duplicateCount}):</p>
+              {duplicateWarningData.duplicateExpenses.slice(0, 3).map((item, idx) => (
+                <div key={idx} className="flex justify-between font-medium text-neutral-700 dark:text-neutral-300">
+                  <span className="truncate max-w-[200px]">🔹 {item.concept} ({item.category})</span>
+                  <span className="font-mono font-bold">${Number(item.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onSaveBatch({
+                    mode,
+                    targetTableId: selectedTableId,
+                    newTableName: selectedTableId === 'NEW' ? (newTableName.trim() || (mode === 'income' ? 'Ingresos Julio 2026' : 'Gastos Agosto 2026')) : undefined,
+                    targetProjectId: selectedProjectId,
+                    expenses: duplicateWarningData.nonDuplicateExpenses,
+                    newCategories: duplicateWarningData.newCategories,
+                  });
+                  setDuplicateWarningData(null);
+                  onClose();
+                }}
+                className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Omitir duplicados e importar {duplicateWarningData.nonDuplicateExpenses.length} nuevos</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onSaveBatch({
+                    mode,
+                    targetTableId: selectedTableId,
+                    newTableName: selectedTableId === 'NEW' ? (newTableName.trim() || (mode === 'income' ? 'Ingresos Julio 2026' : 'Gastos Agosto 2026')) : undefined,
+                    targetProjectId: selectedProjectId,
+                    expenses: duplicateWarningData.allExpenses,
+                    newCategories: duplicateWarningData.newCategories,
+                  });
+                  setDuplicateWarningData(null);
+                  onClose();
+                }}
+                className="w-full py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+              >
+                Importar de todos modos ({duplicateWarningData.allExpenses.length} filas totales)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDuplicateWarningData(null)}
+                className="w-full py-1.5 text-xs text-neutral-400 hover:text-neutral-600 font-semibold"
+              >
+                Cancelar y volver
+              </button>
             </div>
           </div>
         </div>

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { BatchTable, Expense, Project } from '@/types';
-import { ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown, Layers, AlertTriangle, Edit3, X, Check } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown, Layers, AlertTriangle, Edit3, X, Check, RefreshCw } from 'lucide-react';
+import { findOrphanExpenses, OrphanGroup } from '@/lib/orphanHelpers';
 
 interface BatchTableAccordionProps {
   tables: BatchTable[];
@@ -18,6 +19,20 @@ interface BatchTableAccordionProps {
   onBulkDeleteExpenses?: (ids: string[]) => void;
   onReassignOrphans?: (payload: { targetTableId?: string; newTableName?: string }) => void;
   onRenameTable?: (tableId: string, newName: string) => void;
+  onReassignOrphanGroup?: (payload: {
+    groupTableId: string;
+    targetProjectId: string;
+    targetTableId?: string;
+    newTableName?: string;
+  }) => void;
+  onDeleteOrphanGroup?: (groupTableId: string, expenseIds: string[]) => void;
+  onDeleteTableWithOptions?: (payload: {
+    tableId: string;
+    action: 'delete_all' | 'reassign';
+    targetProjectId?: string;
+    targetTableId?: string;
+    newTableName?: string;
+  }) => void;
 }
 
 export function BatchTableAccordion({
@@ -33,21 +48,37 @@ export function BatchTableAccordion({
   onDeleteExpense,
   onBulkDeleteExpenses,
   onReassignOrphans,
-  onRenameTable
+  onRenameTable,
+  onReassignOrphanGroup,
+  onDeleteOrphanGroup,
+  onDeleteTableWithOptions
 }: BatchTableAccordionProps) {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState<boolean>(false);
 
-  // Recovery Card state for orphaned records (tableId === 'NEW')
-  const [recoveryTargetTableId, setRecoveryTargetTableId] = useState<string>('');
-  const [recoveryNewTableName, setRecoveryNewTableName] = useState<string>('');
-  const [isWarningConfirmed, setIsWarningConfirmed] = useState<boolean>(false);
-
   // Rename Table Modal state
   const [tableToRename, setTableToRename] = useState<BatchTable | null>(null);
   const [renameInputName, setRenameInputName] = useState<string>('');
   const [renameError, setRenameError] = useState<string | null>(null);
+
+  // Orphan Group Modal States
+  const [reassignModalGroup, setReassignModalGroup] = useState<OrphanGroup | null>(null);
+  const [reassignTargetProjectId, setReassignTargetProjectId] = useState<string>('');
+  const [reassignTargetTableId, setReassignTargetTableId] = useState<string>('');
+  const [reassignNewTableName, setReassignNewTableName] = useState<string>('');
+  const [isReassignCheckboxConfirmed, setIsReassignCheckboxConfirmed] = useState<boolean>(false);
+
+  const [deleteModalGroup, setDeleteModalGroup] = useState<OrphanGroup | null>(null);
+  const [confirmDeleteInput, setConfirmDeleteInput] = useState<string>('');
+
+  // Safe Table Deletion Modal State
+  const [tableToDeleteSafe, setTableToDeleteSafe] = useState<{ table: BatchTable; rowsCount: number; totalSum: number } | null>(null);
+  const [safeDeleteAction, setSafeDeleteAction] = useState<'delete_all' | 'reassign'>('reassign');
+  const [safeDeleteTargetProjectId, setSafeDeleteTargetProjectId] = useState<string>('');
+  const [safeDeleteTargetTableId, setSafeDeleteTargetTableId] = useState<string>('');
+  const [safeDeleteNewTableName, setSafeDeleteNewTableName] = useState<string>('');
+  const [safeDeleteConfirmCountInput, setSafeDeleteConfirmCountInput] = useState<string>('');
 
   // Clear selection on context or mode change
   useEffect(() => {
@@ -57,19 +88,19 @@ export function BatchTableAccordion({
   // Keyboard shortcut listener to close modal on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && tableToRename) {
-        setTableToRename(null);
-        setRenameError(null);
+      if (e.key === 'Escape') {
+        if (tableToRename) setTableToRename(null);
+        if (reassignModalGroup) setReassignModalGroup(null);
+        if (deleteModalGroup) setDeleteModalGroup(null);
+        if (tableToDeleteSafe) setTableToDeleteSafe(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tableToRename]);
+  }, [tableToRename, reassignModalGroup, deleteModalGroup, tableToDeleteSafe]);
 
-  // Detect orphaned expenses with tableId === 'NEW'
-  const orphanExpenses = expenses.filter(e => e.tableId === 'NEW');
-  const orphanCount = orphanExpenses.length;
-  const orphanTotalSum = orphanExpenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+  // Detect orphaned expenses grouped by tableId using pure helper
+  const orphanGroups = findOrphanExpenses(expenses, tables);
 
   // Filter tables matching active mode & project filter
   const modeTables = tables.filter(t => {
@@ -133,11 +164,50 @@ export function BatchTableAccordion({
     setRenameError(null);
   };
 
-  const isValidTarget = recoveryTargetTableId === 'NEW'
-    ? recoveryNewTableName.trim().length > 0
-    : recoveryTargetTableId.length > 0;
+  // Safe Table Deletion trigger
+  const handleInitiateDeleteTable = (table: BatchTable) => {
+    const tableRows = expenses.filter(e => e.tableId === table.id);
+    if (tableRows.length === 0) {
+      // Empty table: delete directly
+      onDeleteTable(table.id);
+    } else {
+      // Non-empty table: open safe delete modal
+      const totalSum = tableRows.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+      setTableToDeleteSafe({ table, rowsCount: tableRows.length, totalSum });
+      setSafeDeleteAction('reassign');
+      setSafeDeleteTargetProjectId(table.projectId || projects[0]?.id || 'PRJ-01');
+      setSafeDeleteTargetTableId('');
+      setSafeDeleteNewTableName('');
+      setSafeDeleteConfirmCountInput('');
+    }
+  };
 
-  const canReassign = isValidTarget && isWarningConfirmed;
+  const handleConfirmSafeDeleteTable = () => {
+    if (!tableToDeleteSafe || !onDeleteTableWithOptions) return;
+
+    if (safeDeleteAction === 'delete_all') {
+      if (safeDeleteConfirmCountInput.trim() !== String(tableToDeleteSafe.rowsCount)) return;
+      onDeleteTableWithOptions({
+        tableId: tableToDeleteSafe.table.id,
+        action: 'delete_all'
+      });
+    } else if (safeDeleteAction === 'reassign') {
+      const isValidTarget = safeDeleteTargetTableId === 'NEW'
+        ? safeDeleteNewTableName.trim().length > 0
+        : safeDeleteTargetTableId.length > 0;
+      if (!isValidTarget) return;
+
+      onDeleteTableWithOptions({
+        tableId: tableToDeleteSafe.table.id,
+        action: 'reassign',
+        targetProjectId: safeDeleteTargetProjectId,
+        targetTableId: safeDeleteTargetTableId,
+        newTableName: safeDeleteNewTableName
+      });
+    }
+
+    setTableToDeleteSafe(null);
+  };
 
   const formatCurrency = (val: number) => {
     return `$${(val || 0).toLocaleString('es-MX', {
@@ -149,111 +219,88 @@ export function BatchTableAccordion({
   return (
     <div className="space-y-4 min-w-0 w-full">
 
-      {/* RECOVERY CARD FOR ORPHANED RECORDS (tableId === 'NEW') */}
-      {activeMode === 'expense' && orphanCount > 0 && (
+      {/* WARNING BANNER CARD FOR ORPHANED GROUPS ("Registros sin tabla asociada") */}
+      {orphanGroups.length > 0 && (
         <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500/40 dark:border-amber-500/30 shadow-lg space-y-4 animate-in fade-in duration-200 min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 shrink-0">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-extrabold text-amber-900 dark:text-amber-200">
-                  ⚠️ Se detectaron {orphanCount} registros capturados sin asignación de período ({formatCurrency(orphanTotalSum)})
-                </h3>
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Tus {orphanCount} registros existen en la base de datos y están seguros. Elige o crea la tabla destino para agruparlos y desplegarlos en las tablas por período.
-                </p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/30 shrink-0">
+              <AlertTriangle className="w-6 h-6" />
             </div>
-          </div>
-
-          {/* Data Summary Preview */}
-          <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-neutral-900/80 border border-amber-300 dark:border-amber-900/50 space-y-2 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 font-semibold text-neutral-800 dark:text-neutral-200">
-              <span>Total Filas: <strong className="text-amber-600 dark:text-amber-400">{orphanCount} transacciones</strong></span>
-              <span>Monto Acumulado: <strong className="text-rose-600 dark:text-rose-400">-{formatCurrency(orphanTotalSum)} MXN</strong></span>
-              <span>Rango de fechas: 📅 {orphanExpenses[0]?.date || '-'} al {orphanExpenses[orphanExpenses.length - 1]?.date || '-'}</span>
-            </div>
-            
-            <div className="border-t border-neutral-200 dark:border-neutral-800 pt-2 space-y-1">
-              <p className="text-[11px] font-bold text-neutral-400">Muestra de registros a asignar:</p>
-              {orphanExpenses.slice(0, 3).map((item, idx) => (
-                <div key={item.id || idx} className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
-                  <span className="truncate max-w-[240px]">🔹 {item.concept} ({item.category})</span>
-                  <span className="font-mono font-bold text-rose-500">-{formatCurrency(Number(item.amount) || 0)}</span>
-                </div>
-              ))}
-              {orphanCount > 3 && (
-                <p className="text-[10px] text-neutral-400 italic">... y {orphanCount - 3} registros más.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Target Table Selector */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                Tabla / Período Destino Obligatorio:
-              </label>
-              <select
-                value={recoveryTargetTableId}
-                onChange={e => setRecoveryTargetTableId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-neutral-800 border border-amber-400 dark:border-amber-700 text-xs font-semibold outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="">-- Selecciona o crea una tabla destino --</option>
-                <option value="NEW">➕ Crear Nueva Tabla de Período...</option>
-                {modeTables.map(t => (
-                  <option key={t.id} value={t.id}>
-                    📁 {t.name} ({t.createdAt})
-                  </option>
-                ))}
-              </select>
+              <h3 className="text-sm sm:text-base font-extrabold text-amber-900 dark:text-amber-200">
+                ⚠️ Registros sin tabla asociada ({orphanGroups.reduce((a, b) => a + b.count, 0)} transacciones huérfanas)
+              </h3>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Se detectaron {orphanGroups.length} lote(s) de transacciones cuyo identificador de tabla ya no existe. Tus datos están 100% seguros. Elige si deseas reasignar el lote a una tabla existente/nueva o eliminarlo de forma explícita.
+              </p>
             </div>
-
-            {recoveryTargetTableId === 'NEW' && (
-              <div>
-                <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                  Nombre de la Nueva Tabla:
-                </label>
-                <input
-                  type="text"
-                  value={recoveryNewTableName}
-                  onChange={e => setRecoveryNewTableName(e.target.value)}
-                  placeholder="Ej. Gastos Agosto 2026..."
-                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-neutral-800 border border-amber-400 dark:border-amber-700 text-xs font-bold outline-none"
-                />
-              </div>
-            )}
           </div>
 
-          {/* Mandatory Checkbox Confirmation & Action Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-amber-300/60 dark:border-amber-900/60">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-              <input
-                type="checkbox"
-                checked={isWarningConfirmed}
-                onChange={e => setIsWarningConfirmed(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-600 outline-none cursor-pointer shrink-0"
-              />
-              <span>Confirmación explícita: Deseo reasignar únicamente los {orphanCount} registros con tableId="NEW" conservando todos mis otros datos intactos.</span>
-            </label>
+          <div className="space-y-3">
+            {orphanGroups.map((group) => (
+              <div
+                key={group.tableId}
+                className="p-4 rounded-2xl bg-white/90 dark:bg-neutral-900/90 border border-amber-300 dark:border-amber-900/50 space-y-3 text-xs shadow-sm"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+                  <div>
+                    <span className="inline-block px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-bold mr-2">
+                      tableId: {group.tableId}
+                    </span>
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200">
+                      {group.count} filas • Total: <strong className="text-rose-600 dark:text-rose-400">-{formatCurrency(group.totalSum)} MXN</strong>
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-neutral-500 font-medium">
+                    📅 Fechas: {group.minDate} al {group.maxDate}
+                  </div>
+                </div>
 
-            <button
-              type="button"
-              disabled={!canReassign}
-              onClick={() => {
-                if (onReassignOrphans && canReassign) {
-                  onReassignOrphans({
-                    targetTableId: recoveryTargetTableId,
-                    newTableName: recoveryNewTableName
-                  });
-                }
-              }}
-              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-amber-600/30 transition shrink-0"
-            >
-              Asignar registros sin período
-            </button>
+                {/* Sample Rows Preview */}
+                <div className="space-y-1 bg-neutral-50 dark:bg-neutral-950/60 p-2.5 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Muestra de registros (5 de {group.count}):
+                  </p>
+                  {group.sampleRows.map((row, idx) => (
+                    <div key={row.id || idx} className="flex items-center justify-between text-[11px] text-neutral-700 dark:text-neutral-300">
+                      <span className="truncate max-w-[280px]">🔹 {row.concept} ({row.category})</span>
+                      <span className="font-mono font-bold text-rose-500">-{formatCurrency(Number(row.amount) || 0)}</span>
+                    </div>
+                  ))}
+                  {group.count > 5 && (
+                    <p className="text-[10px] text-neutral-400 italic">... y {group.count - 5} registros más en este lote.</p>
+                  )}
+                </div>
+
+                {/* Action Buttons for this Orphan Group */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      setReassignModalGroup(group);
+                      setReassignTargetProjectId(group.projects[0] || projects[0]?.id || 'PRJ-01');
+                      setReassignTargetTableId('');
+                      setReassignNewTableName('');
+                      setIsReassignCheckboxConfirmed(false);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reasignar lote ({group.count} filas)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setDeleteModalGroup(group);
+                      setConfirmDeleteInput('');
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-600/30 transition flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar lote ({group.count} filas)</span>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -397,7 +444,10 @@ export function BatchTableAccordion({
                     </button>
 
                     <button
-                      onClick={() => onDeleteTable(table.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleInitiateDeleteTable(table);
+                      }}
                       className="p-1.5 rounded-xl text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition shrink-0"
                       title="Eliminar esta tabla"
                     >
@@ -516,6 +566,348 @@ export function BatchTableAccordion({
             </div>
           );
         })
+      )}
+
+      {/* REASSIGN ORPHAN GROUP MODAL */}
+      {reassignModalGroup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md"
+          onClick={() => setReassignModalGroup(null)}
+        >
+          <div
+            className="relative w-[calc(100vw-1.5rem)] max-w-lg bg-white dark:bg-[#16161a] rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  Reasignar Lote Huérfano ({reassignModalGroup.count} filas)
+                </h3>
+              </div>
+              <button
+                onClick={() => setReassignModalGroup(null)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-2xl space-y-1 text-xs text-neutral-800 dark:text-neutral-200">
+              <p><strong>tableId Original:</strong> <code className="font-mono text-purple-600 font-bold">{reassignModalGroup.tableId}</code></p>
+              <p><strong>Total Filas:</strong> {reassignModalGroup.count} transacciones | <strong>Monto:</strong> -{formatCurrency(reassignModalGroup.totalSum)} MXN</p>
+              <p><strong>Rango Fechas:</strong> {reassignModalGroup.minDate} al {reassignModalGroup.maxDate}</p>
+            </div>
+
+            {/* Target Selectors */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  1. Proyecto Destino Obligatorio:
+                </label>
+                <select
+                  value={reassignTargetProjectId}
+                  onChange={e => setReassignTargetProjectId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-bold"
+                >
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>
+                      📁 {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                  2. Tabla / Período Destino Obligatorio:
+                </label>
+                <select
+                  value={reassignTargetTableId}
+                  onChange={e => setReassignTargetTableId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-bold"
+                >
+                  <option value="">-- Selecciona o crea una tabla destino --</option>
+                  <option value="NEW">➕ Crear Nueva Tabla de Período...</option>
+                  {tables.filter(t => t.mode === 'expense').map(t => (
+                    <option key={t.id} value={t.id}>
+                      📁 {t.name} ({t.createdAt})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {reassignTargetTableId === 'NEW' && (
+                <div>
+                  <label className="block font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Nombre de la Nueva Tabla:
+                  </label>
+                  <input
+                    type="text"
+                    value={reassignNewTableName}
+                    onChange={e => setReassignNewTableName(e.target.value)}
+                    placeholder="Ej. Gastos Reasignados 2026..."
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-bold"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 cursor-pointer pt-2 select-none">
+                <input
+                  type="checkbox"
+                  checked={isReassignCheckboxConfirmed}
+                  onChange={e => setIsReassignCheckboxConfirmed(e.target.checked)}
+                  className="w-4 h-4 rounded text-purple-600"
+                />
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                  Confirmación: Entiendo que esta acción cambiará únicamente projectId y tableId de estas {reassignModalGroup.count} filas.
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setReassignModalGroup(null)}
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={!isReassignCheckboxConfirmed || (!reassignTargetTableId || (reassignTargetTableId === 'NEW' && !reassignNewTableName.trim()))}
+                onClick={() => {
+                  if (onReassignOrphanGroup && reassignModalGroup) {
+                    onReassignOrphanGroup({
+                      groupTableId: reassignModalGroup.tableId,
+                      targetProjectId: reassignTargetProjectId,
+                      targetTableId: reassignTargetTableId,
+                      newTableName: reassignNewTableName
+                    });
+                  }
+                  setReassignModalGroup(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition"
+              >
+                Confirmar Reasignación de Lote
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE ORPHAN GROUP MODAL (REAL DELETION WITH COUNT CONFIRMATION) */}
+      {deleteModalGroup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md"
+          onClick={() => setDeleteModalGroup(null)}
+        >
+          <div
+            className="relative w-[calc(100vw-1.5rem)] max-w-lg bg-white dark:bg-[#16161a] rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  ⚠️ Confirmación Destructiva: Eliminar Lote ({deleteModalGroup.count} filas)
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  tableId: <code className="font-mono font-bold text-red-500">{deleteModalGroup.tableId}</code>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs text-red-900 dark:text-red-200">
+              <p className="font-bold">⚠️ ADVERTENCIA DE ELIMINACIÓN REAL EN LA NUBE:</p>
+              <p>
+                Esta acción **ELIMINARÁ DEFINITIVAMENTE** las <strong>{deleteModalGroup.count} transacciones</strong> de este lote por un monto acumulado de <strong>-{formatCurrency(deleteModalGroup.totalSum)} MXN</strong> de la base de datos de forma permanente.
+              </p>
+              <p className="italic text-[11px]">
+                Esta operación no es un ocultamiento visual. Los {deleteModalGroup.count} registros desaparecerán del dashboard, lista general, acordeones y base de datos remota.
+              </p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label htmlFor="confirm-delete-count-input" className="block font-bold text-neutral-800 dark:text-neutral-200">
+                Para confirmar la eliminación, escribe la cantidad exacta de filas: <strong className="text-red-600 font-mono text-sm">{deleteModalGroup.count}</strong>
+              </label>
+              <input
+                id="confirm-delete-count-input"
+                type="text"
+                value={confirmDeleteInput}
+                onChange={e => setConfirmDeleteInput(e.target.value)}
+                placeholder={`Escribe ${deleteModalGroup.count} aquí...`}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-mono font-bold text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:ring-2 focus:ring-red-500"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setDeleteModalGroup(null)}
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={confirmDeleteInput.trim() !== String(deleteModalGroup.count)}
+                onClick={() => {
+                  if (onDeleteOrphanGroup && deleteModalGroup) {
+                    onDeleteOrphanGroup(deleteModalGroup.tableId, deleteModalGroup.expenseIds);
+                  }
+                  setDeleteModalGroup(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-red-600/30 transition flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Eliminar Lote Definitivamente ({deleteModalGroup.count})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SAFE TABLE DELETION MODAL (Prevents silent orphan creation) */}
+      {tableToDeleteSafe && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md"
+          onClick={() => setTableToDeleteSafe(null)}
+        >
+          <div
+            className="relative w-[calc(100vw-1.5rem)] max-w-lg bg-white dark:bg-[#16161a] rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  Eliminar Tabla "{tableToDeleteSafe.table.name}"
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Esta tabla contiene <strong>{tableToDeleteSafe.rowsCount} registros asociados</strong> ({formatCurrency(tableToDeleteSafe.totalSum)})
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+              No es posible eliminar únicamente la tabla dejando sus registros huérfanos. Elige la acción que deseas realizar con los {tableToDeleteSafe.rowsCount} registros:
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition">
+                <input
+                  type="radio"
+                  name="safeDeleteAction"
+                  checked={safeDeleteAction === 'reassign'}
+                  onChange={() => setSafeDeleteAction('reassign')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <strong className="block font-bold text-neutral-900 dark:text-neutral-100">Reasignar registros a otra tabla / proyecto</strong>
+                  <span className="text-[11px] text-neutral-500">Conserva los {tableToDeleteSafe.rowsCount} registros y los mueve a la tabla y proyecto elegidos.</span>
+                </div>
+              </label>
+
+              {safeDeleteAction === 'reassign' && (
+                <div className="pl-6 space-y-2.5 pt-1">
+                  <div>
+                    <label className="block font-bold text-neutral-700 dark:text-neutral-300 mb-1">Proyecto Destino:</label>
+                    <select
+                      value={safeDeleteTargetProjectId}
+                      onChange={e => setSafeDeleteTargetProjectId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-bold"
+                    >
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>📁 {p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-neutral-700 dark:text-neutral-300 mb-1">Tabla Destino:</label>
+                    <select
+                      value={safeDeleteTargetTableId}
+                      onChange={e => setSafeDeleteTargetTableId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-bold"
+                    >
+                      <option value="">-- Selecciona tabla --</option>
+                      <option value="NEW">➕ Crear Nueva Tabla...</option>
+                      {tables.filter(t => t.id !== tableToDeleteSafe.table.id && t.mode === tableToDeleteSafe.table.mode).map(t => (
+                        <option key={t.id} value={t.id}>📁 {t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {safeDeleteTargetTableId === 'NEW' && (
+                    <div>
+                      <input
+                        type="text"
+                        value={safeDeleteNewTableName}
+                        onChange={e => setSafeDeleteNewTableName(e.target.value)}
+                        placeholder="Nombre de la nueva tabla..."
+                        className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 font-bold"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-red-200 dark:border-red-950/60 bg-red-500/5 cursor-pointer hover:bg-red-500/10 transition">
+                <input
+                  type="radio"
+                  name="safeDeleteAction"
+                  checked={safeDeleteAction === 'delete_all'}
+                  onChange={() => setSafeDeleteAction('delete_all')}
+                  className="mt-0.5 text-red-600"
+                />
+                <div>
+                  <strong className="block font-bold text-red-600 dark:text-red-400">Eliminar la tabla Y sus {tableToDeleteSafe.rowsCount} registros definitivamente</strong>
+                  <span className="text-[11px] text-neutral-500">Borra de forma permanente la tabla y todos sus registros asociados de la base de datos.</span>
+                </div>
+              </label>
+
+              {safeDeleteAction === 'delete_all' && (
+                <div className="pl-6 pt-1 space-y-1.5">
+                  <label className="block text-[11px] font-bold text-red-600">
+                    Escribe la cantidad exacta ({tableToDeleteSafe.rowsCount}) para confirmar:
+                  </label>
+                  <input
+                    type="text"
+                    value={safeDeleteConfirmCountInput}
+                    onChange={e => setSafeDeleteConfirmCountInput(e.target.value)}
+                    placeholder={`Escribe ${tableToDeleteSafe.rowsCount} aquí...`}
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-red-300 dark:border-red-800 font-mono font-bold text-xs"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setTableToDeleteSafe(null)}
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={
+                  safeDeleteAction === 'delete_all'
+                    ? safeDeleteConfirmCountInput.trim() !== String(tableToDeleteSafe.rowsCount)
+                    : (!safeDeleteTargetTableId || (safeDeleteTargetTableId === 'NEW' && !safeDeleteNewTableName.trim()))
+                }
+                onClick={handleConfirmSafeDeleteTable}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-red-600/30 transition"
+              >
+                Confirmar Acción
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bulk Delete Confirmation Modal */}

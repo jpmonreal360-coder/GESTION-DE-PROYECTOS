@@ -658,32 +658,40 @@ export default function Home() {
     triggerToast(`⚡ Carga masiva procesada: ${count} registros anexados exitosamente.`);
   }, [activeProjectFilter]);
 
-  const handleReassignOrphans = useCallback((payload: { targetTableId?: string; newTableName?: string }) => {
-    let orphanCount = 0;
+  const handleReassignOrphanGroup = useCallback((payload: {
+    groupTableId: string;
+    targetProjectId: string;
+    targetTableId?: string;
+    newTableName?: string;
+  }) => {
+    let count = 0;
     setWorkspaceState(prev => {
       let currentTables = prev.batchTables || DEFAULT_BATCH_TABLES;
-      let targetId = (payload.targetTableId === 'NEW' || !payload.targetTableId) ? undefined : payload.targetTableId;
+      let finalTableId = (payload.targetTableId === 'NEW' || !payload.targetTableId) ? undefined : payload.targetTableId;
 
-      if (!targetId) {
+      if (!finalTableId) {
         const newTbl: BatchTable = {
           id: 'tbl-' + Date.now(),
-          name: payload.newTableName?.trim() || 'Gastos Importados',
+          name: payload.newTableName?.trim() || 'Gastos Reasignados',
           mode: 'expense',
-          projectId: activeProjectFilter !== 'all' ? activeProjectFilter : prev.projects[0]?.id || 'PRJ-01',
+          projectId: payload.targetProjectId,
           createdAt: new Date().toISOString().split('T')[0],
           isCollapsed: false,
         };
         currentTables = [newTbl, ...currentTables];
-        targetId = newTbl.id;
+        finalTableId = newTbl.id;
       } else {
-        currentTables = currentTables.map(t => t.id === targetId ? { ...t, isCollapsed: false } : t);
+        currentTables = currentTables.map(t => t.id === finalTableId ? { ...t, isCollapsed: false } : t);
       }
 
-      // Reassign ONLY expenses with tableId === 'NEW'
-      orphanCount = prev.expenses.filter(e => e.tableId === 'NEW').length;
       const updatedExpenses = prev.expenses.map(e => {
-        if (e.tableId === 'NEW') {
-          return { ...e, tableId: targetId };
+        if (e.tableId === payload.groupTableId) {
+          count++;
+          return {
+            ...e,
+            projectId: payload.targetProjectId,
+            tableId: finalTableId
+          };
         }
         return e;
       });
@@ -696,8 +704,77 @@ export default function Home() {
       };
     });
 
-    triggerToast(`✅ ${orphanCount || 74} registros reasignados exitosamente a la tabla por período.`);
-  }, [activeProjectFilter]);
+    triggerToast(`✅ Lote de ${count} registros reasignado exitosamente.`);
+  }, []);
+
+  const handleDeleteOrphanGroup = useCallback((groupTableId: string, expenseIds: string[]) => {
+    if (!expenseIds || expenseIds.length === 0) return;
+    const idsToDelete = new Set(expenseIds);
+
+    setWorkspaceState(prev => ({
+      ...prev,
+      isCustomized: true,
+      expenses: prev.expenses.filter(e => !idsToDelete.has(e.id))
+    }));
+
+    triggerToast(`🗑️ Lote de ${expenseIds.length} registros huérfanos eliminado definitivamente.`);
+  }, []);
+
+  const handleDeleteTableWithOptions = useCallback((payload: {
+    tableId: string;
+    action: 'delete_all' | 'reassign';
+    targetProjectId?: string;
+    targetTableId?: string;
+    newTableName?: string;
+  }) => {
+    const tbl = workspaceState.batchTables.find(t => t.id === payload.tableId);
+    if (!tbl) return;
+
+    setWorkspaceState(prev => {
+      let currentTables = (prev.batchTables || []).filter(t => t.id !== payload.tableId);
+      let updatedExpenses = prev.expenses;
+
+      if (payload.action === 'delete_all') {
+        // REAL deletion of both table and its rows
+        updatedExpenses = prev.expenses.filter(e => e.tableId !== payload.tableId);
+      } else if (payload.action === 'reassign') {
+        let finalTableId = (payload.targetTableId === 'NEW' || !payload.targetTableId) ? undefined : payload.targetTableId;
+
+        if (!finalTableId && payload.newTableName) {
+          const newTbl: BatchTable = {
+            id: 'tbl-' + Date.now(),
+            name: payload.newTableName.trim(),
+            mode: tbl.mode,
+            projectId: payload.targetProjectId || tbl.projectId,
+            createdAt: new Date().toISOString().split('T')[0],
+            isCollapsed: false,
+          };
+          currentTables = [newTbl, ...currentTables];
+          finalTableId = newTbl.id;
+        }
+
+        updatedExpenses = prev.expenses.map(e => {
+          if (e.tableId === payload.tableId) {
+            return {
+              ...e,
+              projectId: payload.targetProjectId || e.projectId,
+              tableId: finalTableId || e.tableId
+            };
+          }
+          return e;
+        });
+      }
+
+      return {
+        ...prev,
+        isCustomized: true,
+        batchTables: currentTables,
+        expenses: updatedExpenses
+      };
+    });
+
+    triggerToast(`🗑️ Tabla "${tbl.name}" procesada correctamente.`);
+  }, [workspaceState.batchTables]);
 
   const handleRenameTable = useCallback((tableId: string, rawName: string) => {
     const normalizedName = rawName ? rawName.trim() : '';
@@ -951,8 +1028,10 @@ export default function Home() {
               onToggleTableCollapse={handleToggleTableCollapse}
               onDeleteTable={handleDeleteTable}
               onFeedTable={(tableId, mode) => handleOpenBatchModal(mode, tableId)}
-              onReassignOrphans={handleReassignOrphans}
               onRenameTable={handleRenameTable}
+              onReassignOrphanGroup={handleReassignOrphanGroup}
+              onDeleteOrphanGroup={handleDeleteOrphanGroup}
+              onDeleteTableWithOptions={handleDeleteTableWithOptions}
             />
           )}
 
@@ -1084,6 +1163,7 @@ export default function Home() {
         tables={workspaceState.batchTables}
         targetTableId={batchTargetTableId}
         initialMode={batchInitialMode}
+        existingExpenses={workspaceState.expenses}
         onSaveBatch={handleSaveBatch}
       />
 
