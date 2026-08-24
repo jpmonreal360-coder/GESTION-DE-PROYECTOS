@@ -699,6 +699,21 @@ export default function Home() {
     triggerToast(`✅ ${orphanCount || 74} registros reasignados exitosamente a la tabla por período.`);
   }, [activeProjectFilter]);
 
+  const handleRenameTable = useCallback((tableId: string, rawName: string) => {
+    const normalizedName = rawName ? rawName.trim() : '';
+    if (!normalizedName || normalizedName.length > 80) return;
+
+    setWorkspaceState(prev => ({
+      ...prev,
+      isCustomized: true,
+      batchTables: (prev.batchTables || DEFAULT_BATCH_TABLES).map(table =>
+        table.id === tableId ? { ...table, name: normalizedName } : table
+      )
+    }));
+
+    triggerToast(`✏️ Tabla renombrada a "${normalizedName}" exitosamente.`);
+  }, []);
+
   const handleSaveExpense = (data: Partial<Expense>) => {
     setWorkspaceState(prev => {
       const newCategories = data.category && !prev.categories.includes(data.category)
@@ -937,6 +952,7 @@ export default function Home() {
               onDeleteTable={handleDeleteTable}
               onFeedTable={(tableId, mode) => handleOpenBatchModal(mode, tableId)}
               onReassignOrphans={handleReassignOrphans}
+              onRenameTable={handleRenameTable}
             />
           )}
 

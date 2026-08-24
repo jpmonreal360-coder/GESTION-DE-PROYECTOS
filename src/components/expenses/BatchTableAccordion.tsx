@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BatchTable, Expense, Project } from '@/types';
-import { ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown, Layers, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2, TrendingUp, TrendingDown, Layers, AlertTriangle, Edit3, X, Check } from 'lucide-react';
 
 interface BatchTableAccordionProps {
   tables: BatchTable[];
@@ -17,6 +17,7 @@ interface BatchTableAccordionProps {
   onDeleteExpense: (id: string) => void;
   onBulkDeleteExpenses?: (ids: string[]) => void;
   onReassignOrphans?: (payload: { targetTableId?: string; newTableName?: string }) => void;
+  onRenameTable?: (tableId: string, newName: string) => void;
 }
 
 export function BatchTableAccordion({
@@ -31,7 +32,8 @@ export function BatchTableAccordion({
   onEditExpense,
   onDeleteExpense,
   onBulkDeleteExpenses,
-  onReassignOrphans
+  onReassignOrphans,
+  onRenameTable
 }: BatchTableAccordionProps) {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -42,10 +44,27 @@ export function BatchTableAccordion({
   const [recoveryNewTableName, setRecoveryNewTableName] = useState<string>('');
   const [isWarningConfirmed, setIsWarningConfirmed] = useState<boolean>(false);
 
+  // Rename Table Modal state
+  const [tableToRename, setTableToRename] = useState<BatchTable | null>(null);
+  const [renameInputName, setRenameInputName] = useState<string>('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+
   // Clear selection on context or mode change
   useEffect(() => {
     setSelectedIds([]);
   }, [activeMode, activeProjectFilter]);
+
+  // Keyboard shortcut listener to close modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && tableToRename) {
+        setTableToRename(null);
+        setRenameError(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tableToRename]);
 
   // Detect orphaned expenses with tableId === 'NEW'
   const orphanExpenses = expenses.filter(e => e.tableId === 'NEW');
@@ -85,6 +104,33 @@ export function BatchTableAccordion({
     }
     setSelectedIds([]);
     setIsBulkDeleteModalOpen(false);
+  };
+
+  const handleOpenRenameModal = (table: BatchTable) => {
+    setTableToRename(table);
+    setRenameInputName(table.name);
+    setRenameError(null);
+  };
+
+  const handleSaveRenameModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = renameInputName.trim();
+    if (!trimmed) {
+      setRenameError('El nombre de la tabla no puede estar vacío.');
+      return;
+    }
+    if (trimmed.length > 80) {
+      setRenameError('El nombre de la tabla no puede exceder los 80 caracteres.');
+      return;
+    }
+
+    if (onRenameTable && tableToRename) {
+      onRenameTable(tableToRename.id, trimmed);
+    }
+
+    setTableToRename(null);
+    setRenameInputName('');
+    setRenameError(null);
   };
 
   const isValidTarget = recoveryTargetTableId === 'NEW'
@@ -329,6 +375,19 @@ export function BatchTableAccordion({
 
                   <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                     <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenRenameModal(table);
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-semibold transition flex items-center gap-1 shrink-0"
+                      title="Renombrar tabla"
+                      aria-label={`Renombrar tabla ${table.name}`}
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span className="hidden xs:inline sm:inline">Renombrar</span>
+                    </button>
+
+                    <button
                       onClick={() => onFeedTable(table.id, activeMode)}
                       className="px-2.5 py-1 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold transition flex items-center gap-1 shrink-0"
                       title="Alimentar datos a esta tabla"
@@ -495,6 +554,89 @@ export function BatchTableAccordion({
                 Confirmar Eliminación ({selectedIds.length})
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* RENAME TABLE MODAL */}
+      {tableToRename && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md"
+          onClick={() => {
+            setTableToRename(null);
+            setRenameError(null);
+          }}
+        >
+          <div
+            className="relative w-[calc(100vw-1.5rem)] max-w-md bg-white dark:bg-[#16161a] rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  Renombrar Tabla por Período
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setTableToRename(null);
+                  setRenameError(null);
+                }}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
+                aria-label="Cerrar modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRenameModal} className="space-y-4">
+              <div>
+                <label htmlFor="rename-table-input" className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Nuevo nombre de la tabla (1 a 80 caracteres):
+                </label>
+                <input
+                  id="rename-table-input"
+                  type="text"
+                  value={renameInputName}
+                  onChange={e => {
+                    setRenameInputName(e.target.value);
+                    if (renameError) setRenameError(null);
+                  }}
+                  placeholder="Ej. Ingresos Julio 2026, Gastos Operativos..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-xs font-bold text-neutral-900 dark:text-neutral-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                  autoFocus
+                  maxLength={80}
+                />
+                {renameError && (
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1.5 animate-in fade-in">
+                    ⚠️ {renameError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTableToRename(null);
+                    setRenameError(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Guardar nombre</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

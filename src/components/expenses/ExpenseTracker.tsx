@@ -18,6 +18,7 @@ interface ExpenseTrackerProps {
   onDeleteTable?: (tableId: string) => void;
   onFeedTable?: (tableId: string, mode: 'income' | 'expense') => void;
   onReassignOrphans?: (payload: { targetTableId?: string; newTableName?: string }) => void;
+  onRenameTable?: (tableId: string, newName: string) => void;
 }
 
 export const ExpenseTracker: React.FC<ExpenseTrackerProps> = ({
@@ -33,6 +34,7 @@ export const ExpenseTracker: React.FC<ExpenseTrackerProps> = ({
   onDeleteTable = () => {},
   onFeedTable = () => {},
   onReassignOrphans,
+  onRenameTable,
 }) => {
   const [activeTab, setActiveTab] = useState<'accordions' | 'list'>('accordions');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -216,6 +218,7 @@ export const ExpenseTracker: React.FC<ExpenseTrackerProps> = ({
               onDeleteExpense={onDeleteExpense || (() => {})}
               onBulkDeleteExpenses={onBulkDeleteExpenses}
               onReassignOrphans={onReassignOrphans}
+              onRenameTable={onRenameTable}
             />
           </div>
 
@@ -239,6 +242,7 @@ export const ExpenseTracker: React.FC<ExpenseTrackerProps> = ({
               onDeleteExpense={onDeleteExpense || (() => {})}
               onBulkDeleteExpenses={onBulkDeleteExpenses}
               onReassignOrphans={onReassignOrphans}
+              onRenameTable={onRenameTable}
             />
           </div>
         </div>
