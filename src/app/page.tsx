@@ -31,23 +31,20 @@ interface WorkspaceState {
 
 // Module-level stable constants
 const DEFAULT_PROJECTS: Project[] = [
-  { id: 'PRJ-01', name: 'App iOS Redesign', code: 'IOS-01', budget: 450000, totalBudget: 450000, spent: 284500, spentBudget: 284500, color: '#007AFF', category: 'Mobile App', startDate: '2026-08-01', endDate: '2026-11-30' },
-  { id: 'PRJ-02', name: 'SaaS Dashboard v2', code: 'SAAS-02', budget: 350000, totalBudget: 350000, spent: 312000, spentBudget: 312000, color: '#AF52DE', category: 'Web App', startDate: '2026-07-15', endDate: '2026-10-15' },
-  { id: 'PRJ-03', name: 'Brand Identity 2026', code: 'BRAND-03', budget: 220000, totalBudget: 220000, spent: 148000, spentBudget: 148000, color: '#FF9500', category: 'Design', startDate: '2026-08-05', endDate: '2026-09-30' }
+  { id: 'PRJ-03', name: 'BRISARA', code: 'BRI-03', budget: 5000000, totalBudget: 5000000, spent: 4070602.51, spentBudget: 4070602.51, color: '#AF52DE', category: 'Desarrollo / Construcción', startDate: '2026-05-01', endDate: '2026-12-31' },
+  { id: 'PRJ-01', name: 'PLAZA MÍSTICA', code: 'PLZ-01', budget: 3500000, totalBudget: 3500000, spent: 248500, spentBudget: 248500, color: '#007AFF', category: 'Comercial', startDate: '2026-06-01', endDate: '2026-11-30' },
+  { id: 'PRJ-02', name: 'HOTEL ROYAL', code: 'ROY-02', budget: 4200000, totalBudget: 4200000, spent: 1800000, spentBudget: 1800000, color: '#FF9500', category: 'Hotelería', startDate: '2026-04-01', endDate: '2026-10-31' },
+  { id: 'PRJ-04', name: 'PLAZA CONTADOR', code: 'CNT-04', budget: 2800000, totalBudget: 2800000, spent: 950000, spentBudget: 950000, color: '#34C759', category: 'Comercial', startDate: '2026-05-15', endDate: '2026-09-30' }
 ];
 
 const DEFAULT_BATCH_TABLES: BatchTable[] = [
-  { id: 'tbl-101', name: 'Ingresos Julio 2026', mode: 'income', projectId: 'PRJ-01', createdAt: '2026-07-01', isCollapsed: false },
-  { id: 'tbl-102', name: 'Gastos Agosto 2026', mode: 'expense', projectId: 'PRJ-01', createdAt: '2026-08-01', isCollapsed: false },
+  { id: 'tbl-101', name: 'Ingresos Acumulados 2026', mode: 'income', projectId: 'PRJ-03', createdAt: '2026-05-01', isCollapsed: false },
+  { id: 'tbl-103', name: 'Gastos Desde Mayo 2026', mode: 'expense', projectId: 'PRJ-03', createdAt: '2026-05-10', isCollapsed: false },
 ];
 
 const DEFAULT_EXPENSES: Expense[] = [
-  { id: 'exp-101', type: 'INCOME', concept: 'Anticipo 50% Proyecto Rediseño iOS', amount: 225000, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-08-01', status: 'PAID', tableId: 'tbl-101' },
-  { id: 'exp-102', type: 'INCOME', concept: 'Cobro Hito 1 SaaS Dashboard', amount: 175000, category: 'Facturación / Cobro', projectId: 'PRJ-02', date: '2026-08-05', status: 'PAID', tableId: 'tbl-101' },
-  { id: 'exp-103', type: 'INCOME', concept: 'Pago Total Brand Identity 2026', amount: 220000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-08-08', status: 'PAID', tableId: 'tbl-101' },
-  { id: 'exp-1', type: 'EXPENSE', concept: 'Suscripción Figma Enterprise', amount: 28400, category: 'Software & Cloud', projectId: 'PRJ-01', date: '2026-08-15', status: 'PAID', tableId: 'tbl-102' },
-  { id: 'exp-2', type: 'EXPENSE', concept: 'Servidores AWS & Cloudflare CDN', amount: 64000, category: 'Infraestructura & Server', projectId: 'PRJ-02', date: '2026-08-14', status: 'PAID', tableId: 'tbl-102' },
-  { id: 'exp-3', type: 'EXPENSE', concept: 'Tipografía Personalizada Font Lab', amount: 16450, category: 'Diseño UI/UX', projectId: 'PRJ-03', date: '2026-08-10', status: 'PAID', tableId: 'tbl-102' }
+  { id: 'exp-inc-1', type: 'INCOME', concept: 'Cobro Anticipo Fiduciario BRISARA', amount: 3500000, category: 'Facturación / Cobro', projectId: 'PRJ-03', date: '2026-05-01', status: 'PAID', tableId: 'tbl-101' },
+  { id: 'exp-inc-2', type: 'INCOME', concept: 'Pago Hito 1 PLAZA MÍSTICA', amount: 248500, category: 'Facturación / Cobro', projectId: 'PRJ-01', date: '2026-06-01', status: 'PAID', tableId: 'tbl-101' },
 ];
 
 const DEFAULT_TASKS: Task[] = [
