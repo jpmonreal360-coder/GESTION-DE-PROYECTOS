@@ -210,7 +210,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
   };
 
   const handleRowChange = (id: string, field: keyof BatchRowData, value: any) => {
-    setRows(rows.map(r => {
+    setRows(prevRows => prevRows.map(r => {
       if (r.id !== id) return r;
       if (field === 'category' && value === 'NEW_CUSTOM') {
         return { ...r, category: 'NEW_CUSTOM', isCustomCategory: true };
@@ -606,12 +606,27 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                         onChange={e => {
                           const val = e.target.value;
                           if (val === 'NEW_RESPONSIBLE') {
-                            handleRowChange(row.id, 'isCustomAssignee', true);
-                            handleRowChange(row.id, 'customAssigneeInput', '');
+                            setRows(prevRows => prevRows.map(r => {
+                              if (r.id !== row.id) return r;
+                              return {
+                                ...r,
+                                isCustomAssignee: true,
+                                customAssigneeInput: '',
+                                assigneeId: 'NEW_RESPONSIBLE'
+                              };
+                            }));
                           } else {
                             const respObj = combinedResponsibles.find(r => r.id === val);
-                            handleRowChange(row.id, 'assigneeId', val);
-                            handleRowChange(row.id, 'assignee', respObj ? respObj.name : '');
+                            setRows(prevRows => prevRows.map(r => {
+                              if (r.id !== row.id) return r;
+                              return {
+                                ...r,
+                                assigneeId: val,
+                                assignee: respObj ? respObj.name : '',
+                                isCustomAssignee: false,
+                                customAssigneeInput: ''
+                              };
+                            }));
                           }
                         }}
                         className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 outline-none truncate"
@@ -643,11 +658,23 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            handleRowChange(row.id, 'isCustomAssignee', false);
-                            handleRowChange(row.id, 'customAssigneeInput', '');
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            e.stopPropagation();
                           }}
-                          className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 text-xs shrink-0"
+                          onClick={() => {
+                            setRows(prevRows => prevRows.map(r => {
+                              if (r.id !== row.id) return r;
+                              return {
+                                ...r,
+                                isCustomAssignee: false,
+                                customAssigneeInput: '',
+                                assigneeId: '',
+                                assignee: ''
+                              };
+                            }));
+                          }}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs shrink-0 transition"
                           title="Cancelar"
                         >
                           ✕
