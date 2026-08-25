@@ -353,8 +353,15 @@ export async function PUT(
     }).catch(() => null);
 
     if (!evalRes || !evalRes.ok) {
+      const errText = evalRes ? await evalRes.text().catch(() => '') : 'fetch_null';
+      const errStatus = evalRes ? evalRes.status : 0;
       return NextResponse.json(
-        { error: 'PERSISTENCE_UNAVAILABLE', message: 'Fallo al ejecutar evaluación CAS en Redis.' },
+        {
+          error: 'PERSISTENCE_UNAVAILABLE',
+          message: 'Fallo al ejecutar evaluación CAS en Redis.',
+          evalResStatus: errStatus,
+          evalResText: errText
+        },
         { status: 503, headers: getBuildHeaders() }
       );
     }
