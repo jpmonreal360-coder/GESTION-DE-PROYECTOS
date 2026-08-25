@@ -31,8 +31,17 @@ function getBuildHeaders(extraHeaders: Record<string, string> = {}) {
 }
 
 function getUpstashConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  let url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  let token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (url) {
+    url = url.trim().replace(/^["']|["']$/g, '');
+    if (url.endsWith('/')) {
+      url = url.slice(0, -1);
+    }
+  }
+  if (token) {
+    token = token.trim().replace(/^["']|["']$/g, '');
+  }
   return { url, token };
 }
 
