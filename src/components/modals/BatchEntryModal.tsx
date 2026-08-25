@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Layers, DollarSign, Calendar, FileText, CheckCircle2, AlertCircle, FolderPlus, Clipboard, FileSpreadsheet, AlertTriangle } from 'lucide-react';
-import { Project, Expense, Task, Document, BatchTable } from '@/types';
+import { X, Plus, Trash2, Layers, DollarSign, Calendar, FileText, CheckCircle2, AlertCircle, FolderPlus, Clipboard, FileSpreadsheet, AlertTriangle, User } from 'lucide-react';
+import { Project, Expense, Task, Document, BatchTable, Responsible } from '@/types';
 import { parseImportText, ParseImportResult } from '@/lib/parseImportText';
 import { getExpenseFingerprint } from '@/lib/orphanHelpers';
 
@@ -18,6 +18,8 @@ export interface BatchRowData {
   amount: number | '';
   date: string;
   assignee: string;
+  assigneeId?: string;
+  notes?: string;
   priority: string;
   docFormat: string;
   docUrl: string;
@@ -37,6 +39,7 @@ interface BatchEntryModalProps {
   onClose: () => void;
   projects: Project[];
   categories?: string[];
+  responsibles?: Responsible[];
   tables?: BatchTable[];
   targetTableId?: string;
   initialMode?: BatchMode;
@@ -65,6 +68,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
     'Infraestructura & Server',
     'Marketing & Ads'
   ],
+  responsibles = [],
   tables = [],
   targetTableId = '',
   initialMode = 'expense',
@@ -97,7 +101,9 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
     customCategoryInput: '',
     amount: '',
     date: todayStr,
-    assignee: 'Edmundo A.',
+    assignee: '',
+    assigneeId: '',
+    notes: '',
     priority: 'MEDIUM',
     docFormat: 'image',
     docUrl: '',
@@ -283,15 +289,23 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
       });
       onClose();
     } else if (mode === 'task') {
-      const tasksPayload: Partial<Task>[] = validRows.map(r => ({
-        title: r.concept.trim(),
-        category: r.category,
-        projectId: selectedProjectId,
-        assigneeName: r.assignee || 'Edmundo A.',
-        priority: (r.priority as any) || 'MEDIUM',
-        status: 'TODO',
-        dueDate: r.date || todayStr,
-      }));
+      const tasksPayload: Partial<Task>[] = validRows.map(r => {
+        const selectedResp = (responsibles || []).find(resp => resp.id === r.assigneeId);
+        const nameToUse = selectedResp ? selectedResp.name : (r.assignee || '');
+        const idsToUse = selectedResp ? [selectedResp.id] : (r.assigneeId ? [r.assigneeId] : []);
+        return {
+          title: r.concept.trim(),
+          category: r.category,
+          projectId: selectedProjectId,
+          assigneeName: nameToUse || undefined,
+          assignee: nameToUse || undefined,
+          assigneeIds: idsToUse.length > 0 ? idsToUse : undefined,
+          notes: r.notes?.trim() || undefined,
+          priority: (r.priority as any) || 'MEDIUM',
+          status: 'TODO',
+          dueDate: r.date || todayStr,
+        };
+      });
 
       onSaveBatch({
         mode: 'task',
@@ -462,20 +476,44 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
 
           {/* Dynamic Table Input Area */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 min-h-[220px]">
+            {/* Desktop Column Titles Header */}
+            <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+              {mode === 'task' ? (
+                <>
+                  <div className="col-span-1 text-center">#</div>
+                  <div className="col-span-3">Título de la Tarea</div>
+                  <div className="col-span-2">Responsable</div>
+                  <div className="col-span-1">Prioridad</div>
+                  <div className="col-span-3">Notas Breves (Opcional)</div>
+                  <div className="col-span-1">Fecha</div>
+                  <div className="col-span-1 text-center">Acción</div>
+                </>
+              ) : (
+                <>
+                  <div className="col-span-1 text-center">#</div>
+                  <div className="col-span-4">Concepto / Descripción</div>
+                  <div className="col-span-3">Categoría</div>
+                  <div className="col-span-2">{mode === 'doc' ? 'Formato' : 'Monto ($)'}</div>
+                  <div className="col-span-1">Fecha</div>
+                  <div className="col-span-1 text-center">Acción</div>
+                </>
+              )}
+            </div>
+
             {rows.map((row, index) => (
               <div
                 key={row.id}
                 className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200/80 dark:border-neutral-800 grid grid-cols-1 md:grid-cols-12 gap-3 items-center"
               >
                 {/* Index badge */}
-                <div className="md:col-span-1 flex items-center gap-2">
+                <div className="md:col-span-1 flex items-center justify-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 flex items-center justify-center">
                     {index + 1}
                   </span>
                 </div>
 
                 {/* Concept input */}
-                <div className="md:col-span-4">
+                <div className={mode === 'task' ? 'md:col-span-3' : 'md:col-span-4'}>
                   <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Concepto:</label>
                   <input
                     type="text"
@@ -491,43 +529,66 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                   />
                 </div>
 
-                {/* Category Selector */}
-                <div className="md:col-span-3">
-                  <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Categoría:</label>
-                  {!row.isCustomCategory ? (
+                {/* Category Selector (for non-tasks) OR Responsable Selector (for tasks) */}
+                {mode === 'task' ? (
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Responsable:</label>
                     <select
-                      value={row.category}
-                      onChange={e => handleRowChange(row.id, 'category', e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium outline-none"
+                      value={row.assigneeId || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const respObj = (responsibles || []).find(r => r.id === val);
+                        handleRowChange(row.id, 'assigneeId', val);
+                        handleRowChange(row.id, 'assignee', respObj ? respObj.name : '');
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 outline-none truncate"
                     >
-                      {categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                      <option value="">👤 Sin asignar</option>
+                      {(responsibles || []).map(r => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
                       ))}
-                      <option value="NEW_CUSTOM">✨ + Otra Categoría...</option>
                     </select>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="text"
-                        value={row.customCategoryInput}
-                        onChange={e => handleRowChange(row.id, 'customCategoryInput', e.target.value)}
-                        placeholder="Nueva categoría..."
-                        className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-purple-500 text-xs font-bold text-purple-600 dark:text-purple-400 outline-none"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRowChange(row.id, 'isCustomCategory', false)}
-                        className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 text-xs"
+                  </div>
+                ) : (
+                  <div className="md:col-span-3">
+                    <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Categoría:</label>
+                    {!row.isCustomCategory ? (
+                      <select
+                        value={row.category}
+                        onChange={e => handleRowChange(row.id, 'category', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium outline-none"
                       >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
+                        {categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="NEW_CUSTOM">✨ + Otra Categoría...</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={row.customCategoryInput}
+                          onChange={e => handleRowChange(row.id, 'customCategoryInput', e.target.value)}
+                          placeholder="Nueva categoría..."
+                          className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-purple-500 text-xs font-bold text-purple-600 dark:text-purple-400 outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRowChange(row.id, 'isCustomCategory', false)}
+                          className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Amount / Task Priority / Doc Format */}
-                <div className="md:col-span-2">
+                <div className={mode === 'task' ? 'md:col-span-1' : 'md:col-span-2'}>
                   <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">
                     {mode === 'income' || mode === 'expense' ? 'Monto ($):' : mode === 'task' ? 'Prioridad:' : 'Formato:'}
                   </label>
@@ -548,7 +609,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                     <select
                       value={row.priority}
                       onChange={e => handleRowChange(row.id, 'priority', e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold outline-none"
+                      className="w-full px-2 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold outline-none"
                     >
                       <option value="LOW">🟢 Baja</option>
                       <option value="MEDIUM">🟡 Media</option>
@@ -569,6 +630,20 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                   )}
                 </div>
 
+                {/* Notes Input (Only for Tasks) */}
+                {mode === 'task' && (
+                  <div className="md:col-span-3">
+                    <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Notas Breves:</label>
+                    <input
+                      type="text"
+                      value={row.notes || ''}
+                      onChange={e => handleRowChange(row.id, 'notes', e.target.value)}
+                      placeholder="Notas u observaciones opcionales..."
+                      className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
+
                 {/* Date picker */}
                 <div className="md:col-span-1">
                   <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Fecha:</label>
@@ -576,7 +651,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                     type="date"
                     value={row.date}
                     onChange={e => handleRowChange(row.id, 'date', e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-mono outline-none"
+                    className="w-full px-2 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-mono outline-none"
                   />
                 </div>
 

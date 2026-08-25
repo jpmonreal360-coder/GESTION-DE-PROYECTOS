@@ -657,8 +657,10 @@ export default function Home() {
           status: 'TODO' as const,
           priority: t.priority || 'MEDIUM',
           projectId: t.projectId || fallbackProjectId,
-          assigneeName: t.assigneeName || 'Edmundo A.',
-          assignee: t.assigneeName || 'Edmundo A.',
+          assigneeName: t.assigneeName || t.assignee,
+          assignee: t.assigneeName || t.assignee,
+          assigneeIds: t.assigneeIds || [],
+          notes: t.notes,
           dueDate: t.dueDate || new Date().toISOString().split('T')[0],
           tags: t.tags || ['Captura Masiva'],
           tableId: activeTableId || t.tableId
@@ -1410,6 +1412,7 @@ export default function Home() {
         onClose={() => setIsBatchModalOpen(false)}
         projects={workspaceState.projects}
         categories={workspaceState.categories}
+        responsibles={workspaceState.responsibles || []}
         tables={workspaceState.batchTables}
         targetTableId={batchTargetTableId}
         initialMode={batchInitialMode}
