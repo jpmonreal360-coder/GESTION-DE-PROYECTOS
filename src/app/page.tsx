@@ -600,6 +600,7 @@ export default function Home() {
     tasks?: Partial<Task>[];
     documents?: Partial<Document>[];
     newCategories?: string[];
+    newResponsibles?: Responsible[];
   }) => {
     await realtimeSync.createPreMutationBackup('MASS_BATCH_IMPORT');
     setWorkspaceState(prev => {
@@ -687,11 +688,20 @@ export default function Home() {
         newDocs = [...prepared, ...prev.documents];
       }
 
+      let newResponsibles = prev.responsibles || [];
+      if (payload.newResponsibles && payload.newResponsibles.length > 0) {
+        const existingIds = new Set(newResponsibles.map(r => r.id));
+        const existingNames = new Set(newResponsibles.map(r => r.name.trim().toLowerCase()));
+        const added = payload.newResponsibles.filter(r => !existingIds.has(r.id) && !existingNames.has(r.name.trim().toLowerCase()));
+        newResponsibles = [...newResponsibles, ...added];
+      }
+
       return {
         ...prev,
         isCustomized: true,
         batchTables: currentTables,
         categories: newCategories,
+        responsibles: newResponsibles,
         expenses: newExpenses,
         tasks: newTasks,
         documents: newDocs

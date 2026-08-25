@@ -15,6 +15,8 @@ export interface BatchRowData {
   category: string;
   isCustomCategory?: boolean;
   customCategoryInput?: string;
+  isCustomAssignee?: boolean;
+  customAssigneeInput?: string;
   amount: number | '';
   date: string;
   assignee: string;
@@ -53,6 +55,7 @@ interface BatchEntryModalProps {
     tasks?: Partial<Task>[];
     documents?: Partial<Document>[];
     newCategories?: string[];
+    newResponsibles?: Responsible[];
   }) => void;
 }
 
@@ -78,6 +81,15 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
   const [duplicateWarningData, setDuplicateWarningData] = useState<DuplicateWarningData | null>(null);
   const [mode, setMode] = useState<BatchMode>(initialMode);
   const [rows, setRows] = useState<BatchRowData[]>([]);
+  const [localNewResponsibles, setLocalNewResponsibles] = useState<Responsible[]>([]);
+
+  const PALETTE_COLORS = ['#007AFF', '#34C759', '#FF9500', '#AF52DE', '#FF2D55', '#5856D6', '#00C7BE', '#FF3B30'];
+
+  // Combined list of responsibles (existing + newly created in modal session)
+  const combinedResponsibles = [
+    ...responsibles,
+    ...localNewResponsibles.filter(lr => !responsibles.some(r => r.id === lr.id))
+  ];
 
   // Table & Project Selection State
   const [selectedTableId, setSelectedTableId] = useState<string>(targetTableId || 'NEW');
@@ -99,6 +111,8 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
     category: defaultCategory,
     isCustomCategory: false,
     customCategoryInput: '',
+    isCustomAssignee: false,
+    customAssigneeInput: '',
     amount: '',
     date: todayStr,
     assignee: '',
@@ -109,6 +123,58 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
     docUrl: '',
   });
 
+  const handleConfirmCustomAssignee = (rowId: string) => {
+    setRows(prevRows => prevRows.map(row => {
+      if (row.id !== rowId) return row;
+      const rawName = (row.customAssigneeInput || '').trim();
+      if (!rawName) {
+        return {
+          ...row,
+          isCustomAssignee: false,
+          customAssigneeInput: '',
+          assigneeId: '',
+          assignee: ''
+        };
+      }
+
+      const lower = rawName.toLowerCase();
+      const existingInProps = (responsibles || []).find(r => r.name.trim().toLowerCase() === lower);
+      const existingInLocal = localNewResponsibles.find(r => r.name.trim().toLowerCase() === lower);
+      const matched = existingInProps || existingInLocal;
+
+      if (matched) {
+        return {
+          ...row,
+          assigneeId: matched.id,
+          assignee: matched.name,
+          isCustomAssignee: false,
+          customAssigneeInput: ''
+        };
+      }
+
+      const totalCount = (responsibles || []).length + localNewResponsibles.length;
+      const newColor = PALETTE_COLORS[totalCount % PALETTE_COLORS.length];
+      const now = Date.now();
+      const newRespObj: Responsible = {
+        id: 'resp-' + now + '-' + Math.random().toString(36).substr(2, 4),
+        name: rawName,
+        color: newColor,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      setLocalNewResponsibles(prev => [...prev, newRespObj]);
+
+      return {
+        ...row,
+        assigneeId: newRespObj.id,
+        assignee: newRespObj.name,
+        isCustomAssignee: false,
+        customAssigneeInput: ''
+      };
+    }));
+  };
+
   // Filter matching tables for current mode
   const matchingTables = tables.filter(t => t.mode === mode);
 
@@ -116,6 +182,7 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
+      setLocalNewResponsibles([]);
       setSelectedTableId(targetTableId || (matchingTables.length > 0 ? matchingTables[0].id : 'NEW'));
       setNewTableName(initialMode === 'income' ? 'Ingresos Julio 2026' : initialMode === 'expense' ? 'Gastos Agosto 2026' : 'Nuevas Tareas');
       const initialPrj = projects[0]?.id || 'PRJ-01';
@@ -533,23 +600,60 @@ export const BatchEntryModal: React.FC<BatchEntryModalProps> = ({
                 {mode === 'task' ? (
                   <div className="md:col-span-2">
                     <label className="block text-[10px] font-bold text-neutral-400 mb-1 md:hidden">Responsable:</label>
-                    <select
-                      value={row.assigneeId || ''}
-                      onChange={e => {
-                        const val = e.target.value;
-                        const respObj = (responsibles || []).find(r => r.id === val);
-                        handleRowChange(row.id, 'assigneeId', val);
-                        handleRowChange(row.id, 'assignee', respObj ? respObj.name : '');
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 outline-none truncate"
-                    >
-                      <option value="">👤 Sin asignar</option>
-                      {(responsibles || []).map(r => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
+                    {!row.isCustomAssignee ? (
+                      <select
+                        value={row.assigneeId || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === 'NEW_RESPONSIBLE') {
+                            handleRowChange(row.id, 'isCustomAssignee', true);
+                            handleRowChange(row.id, 'customAssigneeInput', '');
+                          } else {
+                            const respObj = combinedResponsibles.find(r => r.id === val);
+                            handleRowChange(row.id, 'assigneeId', val);
+                            handleRowChange(row.id, 'assignee', respObj ? respObj.name : '');
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-800 dark:text-neutral-200 outline-none truncate"
+                      >
+                        <option value="">👤 Sin asignar</option>
+                        {combinedResponsibles.map(r => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                        <option value="NEW_RESPONSIBLE">✨ + Crear nuevo responsable...</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={row.customAssigneeInput || ''}
+                          onChange={e => handleRowChange(row.id, 'customAssigneeInput', e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleConfirmCustomAssignee(row.id);
+                            }
+                          }}
+                          onBlur={() => handleConfirmCustomAssignee(row.id)}
+                          placeholder="Nombre..."
+                          className="w-full px-2 py-1.5 rounded-xl bg-white dark:bg-neutral-800 border border-purple-500 text-xs font-bold text-purple-600 dark:text-purple-400 outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleRowChange(row.id, 'isCustomAssignee', false);
+                            handleRowChange(row.id, 'customAssigneeInput', '');
+                          }}
+                          className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 text-xs shrink-0"
+                          title="Cancelar"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="md:col-span-3">
