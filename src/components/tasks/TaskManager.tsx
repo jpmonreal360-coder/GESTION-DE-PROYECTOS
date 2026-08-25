@@ -157,6 +157,14 @@ function SortableTaskCard({
         )}
       </div>
 
+      {/* Task Notes Field Preview */}
+      {task.notes && task.notes.trim().length > 0 && (
+        <div className="p-2 rounded-lg bg-neutral-100/80 dark:bg-neutral-800/80 border border-neutral-200/50 dark:border-neutral-700/50 text-[11px] text-neutral-600 dark:text-neutral-300 break-words whitespace-pre-wrap">
+          <span className="font-semibold text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase tracking-wider mb-0.5">📝 Notas:</span>
+          {task.notes}
+        </div>
+      )}
+
       {/* Footer & Accessible Phase Change Dropdown */}
       <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-neutral-800/60 text-[11px] gap-2">
         <span className="font-mono text-neutral-400 shrink-0">📅 {task.dueDate || 'Sin fecha'}</span>

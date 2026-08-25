@@ -905,9 +905,13 @@ export default function Home() {
           status: 'TODO',
           priority: data.priority || 'MEDIUM',
           projectId: data.projectId || prev.projects[0]?.id || 'PRJ-01',
-          assigneeName: data.assigneeName || 'Edmundo A.',
-          assignee: data.assigneeName || 'Edmundo A.',
+          assigneeName: data.assigneeName || 'Sin asignar',
+          assignee: data.assigneeName || 'Sin asignar',
+          assigneeIds: data.assigneeIds || [],
+          position: Date.now(),
+          updatedAt: Date.now(),
           dueDate: data.dueDate || new Date().toISOString().split('T')[0],
+          notes: data.notes || '',
           tags: ['Asignado']
         };
         newTasks = [newTask, ...prev.tasks];

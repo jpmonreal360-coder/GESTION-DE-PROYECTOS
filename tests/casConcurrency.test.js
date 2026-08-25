@@ -232,7 +232,20 @@ async function runTest3_PersistedSuccess(redis) {
   };
   redis.store.set(key, JSON.stringify(initialEnv));
 
-  const updatedState = { ...sampleState, tasks: [{ id: 'TSK-1', title: 'Nueva Tarea VIP' }] };
+  const updatedState = {
+    ...sampleState,
+    responsibles: [{ id: 'resp-1', name: 'Edmundo A.', color: '#007AFF', createdAt: 100, updatedAt: 100 }],
+    tasks: [{
+      id: 'TSK-1',
+      title: 'Nueva Tarea VIP',
+      status: 'TODO',
+      priority: 'HIGH',
+      projectId: 'PRJ-1',
+      assigneeName: 'Edmundo A.',
+      assigneeIds: ['resp-1'],
+      notes: 'Nota importante: verificar presupuesto antes de autorizar.'
+    }]
+  };
   const updatedChecksum = computeStateChecksum(updatedState);
 
   // Execute CAS
@@ -252,7 +265,9 @@ async function runTest3_PersistedSuccess(redis) {
     persistedEnv.revision !== evalRet.revision ||
     persistedEnv.updatedAt !== evalRet.updatedAt ||
     persistedEnv.checksum !== evalRet.checksum ||
-    persistedEnv.state.tasks.length !== 1
+    persistedEnv.state.tasks.length !== 1 ||
+    persistedEnv.state.tasks[0].notes !== 'Nota importante: verificar presupuesto antes de autorizar.' ||
+    persistedEnv.state.tasks[0].assigneeIds[0] !== 'resp-1'
   ) {
     throw new Error('PRUEBA 3 FALLÓ: Discrepancia entre la respuesta 200 y el envelope persistido en Redis.');
   }

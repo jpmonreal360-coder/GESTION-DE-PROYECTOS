@@ -191,7 +191,20 @@ async function runRealIntegrationSuite() {
 
   // STEP 3: Execute real EVAL CAS 200 OK on PROYECTOS-TEST
   console.log('\n[PASO 3] Ejecutando CAS EVAL atómico exitoso en PROYECTOS-TEST...');
-  const updatedState = { ...initialSampleState, tasks: [{ id: 'TSK-REAL-1', title: 'Tarea Real Integración' }] };
+  const updatedState = {
+    ...initialSampleState,
+    responsibles: [{ id: 'resp-test-1', name: 'Edmundo A.', color: '#007AFF', createdAt: 100, updatedAt: 100 }],
+    tasks: [{
+      id: 'TSK-REAL-1',
+      title: 'Tarea Real Integración',
+      status: 'TODO',
+      priority: 'HIGH',
+      projectId: 'PRJ-TEST-01',
+      assigneeName: 'Edmundo A.',
+      assigneeIds: ['resp-test-1'],
+      notes: 'Nota persistida en Upstash real:\n- Punto 1\n- Punto 2'
+    }]
+  };
   const updatedChecksum = computeStateChecksum(updatedState);
   const candidateUpdatedAt = Date.now();
 
@@ -226,7 +239,9 @@ async function runRealIntegrationSuite() {
   if (
     persistedEnv.revision !== 2 ||
     persistedEnv.checksum !== casResult.checksum ||
-    persistedEnv.state.tasks.length !== 1
+    persistedEnv.state.tasks.length !== 1 ||
+    persistedEnv.state.tasks[0].notes !== 'Nota persistida en Upstash real:\n- Punto 1\n- Punto 2' ||
+    persistedEnv.state.tasks[0].assigneeIds[0] !== 'resp-test-1'
   ) {
     throw new Error('Fallo en verificación: Discrepancia entre la respuesta EVAL y el envelope almacenado en Upstash.');
   }

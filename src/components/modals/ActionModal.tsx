@@ -53,6 +53,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
   const [respSearchQuery, setRespSearchQuery] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
 
   // Document Fields
   const [docFormat, setDocFormat] = useState('image');
@@ -83,6 +84,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
       setPriority(editItem.priority || 'MEDIUM');
       setProjectId(editItem.projectId);
       setDueDate(editItem.dueDate || new Date().toISOString().split('T')[0]);
+      setNotes(editItem.notes || '');
     } else if (editItem && editType === 'doc') {
       setFormType('doc');
       setTitle(editItem.title);
@@ -95,6 +97,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
       setAmount('');
       setSelectedAssigneeIds([]);
       setRespSearchQuery('');
+      setNotes('');
       setFormType('doc');
       setPastedDataUrl(null);
       setIsCustomCategory(false);
@@ -173,6 +176,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
         assignee: finalAssigneeName,
         assigneeIds: selectedAssigneeIds,
         dueDate,
+        notes: notes.trim() || undefined,
         tags: ['Asignado'],
       });
     } else {
@@ -519,6 +523,19 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                     className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+                  Notas Adicionales (Opcional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Detalles, instrucciones o contexto adicional..."
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none resize-y text-xs"
+                />
               </div>
             </div>
           )}

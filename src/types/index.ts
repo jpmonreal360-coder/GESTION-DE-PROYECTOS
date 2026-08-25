@@ -58,6 +58,7 @@ export interface Task {
   assigneeIds?: string[];
   position?: number;
   updatedAt?: number;
+  notes?: string;
   tags?: string[];
   tableId?: string;
 }
