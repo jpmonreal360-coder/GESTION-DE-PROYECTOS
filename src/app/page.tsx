@@ -1220,7 +1220,11 @@ export default function Home() {
               projects={workspaceState.projects}
               responsibles={workspaceState.responsibles || []}
               activeProjectFilter={activeProjectFilter}
-              onAddTask={() => handleOpenBatchModal('task')}
+              onAddTask={() => {
+                setEditType('task');
+                setEditItem(null);
+                setIsActionModalOpen(true);
+              }}
               onEditTask={(task) => {
                 setEditType('task');
                 setEditItem(task);

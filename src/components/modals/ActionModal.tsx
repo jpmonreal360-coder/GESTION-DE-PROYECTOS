@@ -68,37 +68,37 @@ export const ActionModal: React.FC<ActionModalProps> = ({
   }, [projects, projectId]);
 
   useEffect(() => {
-    if (editItem && editType === 'expense') {
-      setFormType(editItem.type === 'INCOME' ? 'income' : 'expense');
-      setTitle(editItem.concept);
-      setAmount(editItem.amount);
-      setCategory(editItem.category);
-      setIsCustomCategory(false);
-      setProjectId(editItem.projectId);
-      setFinanceDate(editItem.date || new Date().toISOString().split('T')[0]);
-    } else if (editItem && editType === 'task') {
+    if (editType === 'task') {
       setFormType('task');
-      setTitle(editItem.title);
-      setAssignee(editItem.assigneeName || editItem.assignee || 'Edmundo A.');
-      setSelectedAssigneeIds(editItem.assigneeIds || []);
-      setPriority(editItem.priority || 'MEDIUM');
-      setProjectId(editItem.projectId);
-      setDueDate(editItem.dueDate || new Date().toISOString().split('T')[0]);
-      setNotes(editItem.notes || '');
-    } else if (editItem && editType === 'doc') {
+      setTitle(editItem ? editItem.title : '');
+      setAssignee(editItem ? (editItem.assigneeName || editItem.assignee || 'Edmundo A.') : 'Edmundo A.');
+      setSelectedAssigneeIds(editItem?.assigneeIds || []);
+      setPriority(editItem?.priority || 'MEDIUM');
+      setProjectId(editItem ? editItem.projectId : projects[0]?.id || 'PRJ-01');
+      setDueDate(editItem?.dueDate || new Date().toISOString().split('T')[0]);
+      setNotes(editItem?.notes || '');
+    } else if (editType === 'expense' || (editItem && editItem.concept)) {
+      setFormType(editItem?.type === 'INCOME' ? 'income' : 'expense');
+      setTitle(editItem ? editItem.concept : '');
+      setAmount(editItem ? editItem.amount : '');
+      setCategory(editItem ? editItem.category : categories[0] || 'Facturación / Cobro');
+      setIsCustomCategory(false);
+      setProjectId(editItem ? editItem.projectId : projects[0]?.id || 'PRJ-01');
+      setFinanceDate(editItem?.date || new Date().toISOString().split('T')[0]);
+    } else if (editType === 'doc' || (editItem && editItem.format)) {
       setFormType('doc');
-      setTitle(editItem.title);
-      setDocFormat(editItem.format || 'image');
-      setProjectId(editItem.projectId);
-      setDocDate(editItem.date || editItem.updatedAt || new Date().toISOString().split('T')[0]);
-      setPastedDataUrl(editItem.previewUrl || editItem.fileUrl || null);
+      setTitle(editItem ? editItem.title : '');
+      setDocFormat(editItem?.format || 'image');
+      setProjectId(editItem ? editItem.projectId : projects[0]?.id || 'PRJ-01');
+      setDocDate(editItem?.date || editItem?.updatedAt || new Date().toISOString().split('T')[0]);
+      setPastedDataUrl(editItem?.previewUrl || editItem?.fileUrl || null);
     } else {
       setTitle('');
       setAmount('');
       setSelectedAssigneeIds([]);
       setRespSearchQuery('');
       setNotes('');
-      setFormType('doc');
+      setFormType('task');
       setPastedDataUrl(null);
       setIsCustomCategory(false);
       setCustomCategoryInput('');
