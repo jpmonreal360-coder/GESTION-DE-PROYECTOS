@@ -6,6 +6,15 @@ export type TransactionType = 'INCOME' | 'EXPENSE';
 export type DocType = 'PDF' | 'IMAGE' | 'GOOGLE_SHEETS' | 'CONTRACT' | 'PROPOSAL' | 'SPEC' | 'MINUTES' | 'GUIDE';
 export type FileType = 'pdf' | 'image' | 'sheets' | 'link';
 
+export interface Responsible {
+  id: string;
+  name: string;
+  color?: string; // Hexadecimal o clase badge
+  createdAt: number;
+  updatedAt: number;
+  archivedAt?: number;
+}
+
 export interface BatchTable {
   id: string;
   name: string; // ej: "Ingresos Julio 2026", "Gastos Agosto 2026"
@@ -41,16 +50,21 @@ export interface Task {
   priority: TaskPriority | string;
   dueDate?: string;
   projectId: string;
+  // Legacy string assignee fields preserved for 100% backwards compatibility:
   assignee?: string;
   assigneeName?: string;
   assigneeAvatar?: string;
+  // New additive fields:
+  assigneeIds?: string[];
+  position?: number;
+  updatedAt?: number;
   tags?: string[];
   tableId?: string;
 }
 
 export interface Expense {
   id: string;
-  type: TransactionType | string; // 'INCOME' (Entrada) | 'EXPENSE' (Salida)
+  type: TransactionType | string;
   concept: string;
   amount: number;
   currency?: string;
@@ -89,6 +103,23 @@ export interface WikiDoc {
   projectId?: string;
   updatedAt: string;
   content: string;
+}
+
+export interface WorkspaceState {
+  isCustomized: boolean;
+  projects: Project[];
+  expenses: Expense[];
+  tasks: Task[];
+  documents: Document[];
+  wikiDocs: WikiDoc[];
+  categories: string[];
+  projectCategories: string[];
+  batchTables: BatchTable[];
+  responsibles?: Responsible[];
+  migrationMetadata?: {
+    legacyAssigneesMigratedAt?: number;
+    migrationVersion?: number;
+  };
 }
 
 export interface Workspace {

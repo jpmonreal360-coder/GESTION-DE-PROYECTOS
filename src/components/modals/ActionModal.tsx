@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Clipboard } from 'lucide-react';
-import { Project, Expense, Task, Document } from '@/types';
+import { Project, Expense, Task, Document, Responsible } from '@/types';
 
 interface ActionModalProps {
   isOpen: boolean;
   onClose: () => void;
   projects: Project[];
   categories?: string[];
+  responsibles?: Responsible[];
   editType?: 'expense' | 'task' | 'doc' | null;
   editItem?: any;
   onSaveExpense: (expense: Partial<Expense>) => void;
@@ -28,6 +29,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
     'Infraestructura & Server',
     'Marketing & Ads'
   ],
+  responsibles = [],
   editType,
   editItem,
   onSaveExpense,
@@ -47,6 +49,8 @@ export const ActionModal: React.FC<ActionModalProps> = ({
 
   // Task Fields
   const [assignee, setAssignee] = useState('Edmundo A.');
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
+  const [respSearchQuery, setRespSearchQuery] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -75,6 +79,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
       setFormType('task');
       setTitle(editItem.title);
       setAssignee(editItem.assigneeName || editItem.assignee || 'Edmundo A.');
+      setSelectedAssigneeIds(editItem.assigneeIds || []);
       setPriority(editItem.priority || 'MEDIUM');
       setProjectId(editItem.projectId);
       setDueDate(editItem.dueDate || new Date().toISOString().split('T')[0]);
@@ -88,6 +93,8 @@ export const ActionModal: React.FC<ActionModalProps> = ({
     } else {
       setTitle('');
       setAmount('');
+      setSelectedAssigneeIds([]);
+      setRespSearchQuery('');
       setFormType('doc');
       setPastedDataUrl(null);
       setIsCustomCategory(false);
@@ -150,14 +157,21 @@ export const ActionModal: React.FC<ActionModalProps> = ({
         status: 'PAID',
       });
     } else if (formType === 'task') {
+      const selectedNames = responsibles
+        .filter(r => selectedAssigneeIds.includes(r.id))
+        .map(r => r.name);
+
+      const finalAssigneeName = selectedNames.length > 0 ? selectedNames.join(', ') : assignee;
+
       onSaveTask({
         id: editItem && editType === 'task' ? editItem.id : undefined,
         title,
         status: editItem ? editItem.status : 'TODO',
         priority,
         projectId,
-        assigneeName: assignee,
-        assignee,
+        assigneeName: finalAssigneeName,
+        assignee: finalAssigneeName,
+        assigneeIds: selectedAssigneeIds,
         dueDate,
         tags: ['Asignado'],
       });
@@ -392,22 +406,93 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           {/* Task Specific Fields */}
           {formType === 'task' && (
             <div className="space-y-3">
+              <div>
+                <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+                  Responsables Asignados (Selección Múltiple)
+                </label>
+
+                {/* Selected Chips */}
+                {selectedAssigneeIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2 p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                    {selectedAssigneeIds.map(id => {
+                      const r = responsibles.find(resp => resp.id === id);
+                      const nameToShow = r ? r.name : id;
+                      const badgeColor = r?.color || '#007AFF';
+                      return (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white shadow-sm"
+                          style={{ backgroundColor: badgeColor }}
+                        >
+                          <span>{nameToShow}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssigneeIds(prev => prev.filter(x => x !== id))}
+                            className="p-0.5 rounded-full hover:bg-black/20 transition"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Search & Selection Box */}
+                {responsibles.length > 0 ? (
+                  <div className="p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 space-y-2">
+                    <input
+                      type="text"
+                      value={respSearchQuery}
+                      onChange={(e) => setRespSearchQuery(e.target.value)}
+                      placeholder="Buscar responsable en catálogo..."
+                      className="w-full p-2 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-xs outline-none"
+                    />
+                    <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                      {responsibles
+                        .filter(r => !r.archivedAt && r.name.toLowerCase().includes(respSearchQuery.toLowerCase()))
+                        .map(r => {
+                          const isChecked = selectedAssigneeIds.includes(r.id);
+                          return (
+                            <label
+                              key={r.id}
+                              className="flex items-center justify-between p-1.5 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 cursor-pointer text-xs transition"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: r.color || '#007AFF' }} />
+                                <span>{r.name}</span>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedAssigneeIds(prev => [...prev, r.id]);
+                                  } else {
+                                    setSelectedAssigneeIds(prev => prev.filter(x => x !== r.id));
+                                  }
+                                }}
+                                className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                    <input
+                      type="text"
+                      value={assignee}
+                      onChange={(e) => setAssignee(e.target.value)}
+                      placeholder="Nombre del responsable (ej. Edmundo A.)"
+                      className="w-full p-2.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                    Responsable Asignado
-                  </label>
-                  <select
-                    value={assignee}
-                    onChange={(e) => setAssignee(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
-                  >
-                    <option value="Edmundo A.">👤 Edmundo A.</option>
-                    <option value="Sofia R.">👤 Sofia R.</option>
-                    <option value="Carlos M.">👤 Carlos M.</option>
-                    <option value="Lucia P.">👤 Lucia P.</option>
-                  </select>
-                </div>
                 <div>
                   <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
                     Prioridad
@@ -423,17 +508,17 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                     <option value="URGENT">Urgente (URGENT)</option>
                   </select>
                 </div>
-              </div>
-              <div>
-                <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Fecha Límite de la Tarea
-                </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
-                />
+                <div>
+                  <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+                    Fecha Límite
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
+                  />
+                </div>
               </div>
             </div>
           )}

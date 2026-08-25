@@ -13,9 +13,11 @@ import { ProjectModal } from '@/components/modals/ProjectModal';
 import { ActionModal } from '@/components/modals/ActionModal';
 import { BatchEntryModal, BatchMode } from '@/components/modals/BatchEntryModal';
 import { ImageLightboxModal } from '@/components/modals/ImageLightboxModal';
-import { Project, Expense, Task, Document, WikiDoc, BatchTable } from '@/types';
+import { ResponsibleManagerModal } from '@/components/modals/ResponsibleManagerModal';
+import { LegacyMigrationModal } from '@/components/modals/LegacyMigrationModal';
+import { Project, Expense, Task, Document, WikiDoc, BatchTable, Responsible, TaskStatus } from '@/types';
 import { realtimeSync, SyncPayload, SaveStatus, urlSafeEncodeObj, urlSafeDecodeStr } from '@/lib/firebaseSync';
-import { X, Copy, CheckCircle } from 'lucide-react';
+import { X, Copy, CheckCircle, AlertTriangle, RefreshCw, Download } from 'lucide-react';
 
 interface WorkspaceState {
   isCustomized: boolean;
@@ -27,6 +29,11 @@ interface WorkspaceState {
   categories: string[];
   projectCategories: string[];
   batchTables: BatchTable[];
+  responsibles?: Responsible[];
+  migrationMetadata?: {
+    legacyAssigneesMigratedAt?: number;
+    migrationVersion?: number;
+  };
 }
 
 // Module-level stable constants
@@ -139,6 +146,9 @@ export default function Home() {
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [lightboxDoc, setLightboxDoc] = useState<Document | null>(null);
 
+  const [isResponsibleManagerOpen, setIsResponsibleManagerOpen] = useState<boolean>(false);
+  const [isLegacyMigrationOpen, setIsLegacyMigrationOpen] = useState<boolean>(false);
+
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareableUrl, setShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -155,7 +165,8 @@ export default function Home() {
     wikiDocs: DEFAULT_WIKI_DOCS,
     categories: DEFAULT_CATEGORIES,
     projectCategories: DEFAULT_PROJECT_CATEGORIES,
-    batchTables: DEFAULT_BATCH_TABLES
+    batchTables: DEFAULT_BATCH_TABLES,
+    responsibles: []
   });
 
   // Serialized Save Queue to prevent concurrent PUT requests
@@ -179,7 +190,9 @@ export default function Home() {
       wikiDocs: Array.isArray(data.wikiDocs) ? data.wikiDocs : [],
       categories: Array.isArray(data.categories) ? data.categories : DEFAULT_CATEGORIES,
       projectCategories: Array.isArray(data.projectCategories) ? data.projectCategories : DEFAULT_PROJECT_CATEGORIES,
-      batchTables: Array.isArray(data.batchTables) ? data.batchTables : DEFAULT_BATCH_TABLES
+      batchTables: Array.isArray(data.batchTables) ? data.batchTables : DEFAULT_BATCH_TABLES,
+      responsibles: Array.isArray(data.responsibles) ? data.responsibles : [],
+      migrationMetadata: data.migrationMetadata
     });
     const ts = Number(data.updatedAt ?? 0);
     lastRemoteTimestamp.current = ts;
@@ -406,6 +419,8 @@ export default function Home() {
       categories: workspaceState.categories,
       projectCategories: workspaceState.projectCategories,
       batchTables: workspaceState.batchTables,
+      responsibles: workspaceState.responsibles || [],
+      migrationMetadata: workspaceState.migrationMetadata
     };
 
     const isSuccess = await queueSave(stateObj);
@@ -441,6 +456,8 @@ export default function Home() {
         categories: workspaceState.categories,
         projectCategories: workspaceState.projectCategories,
         batchTables: workspaceState.batchTables,
+        responsibles: workspaceState.responsibles || [],
+        migrationMetadata: workspaceState.migrationMetadata,
         updatedAt: Date.now()
       };
 
@@ -926,10 +943,140 @@ export default function Home() {
         const statuses: ('TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED')[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
         const curIndex = statuses.indexOf(t.status as any);
         const nextStatus = statuses[(curIndex + 1) % statuses.length];
-        return { ...t, status: nextStatus };
+        return { ...t, status: nextStatus, updatedAt: Date.now() };
       })
     }));
   };
+
+  const handleMoveTaskPhase = useCallback((taskId: string, targetStatus: TaskStatus, newPosition?: number) => {
+    setWorkspaceState(prev => ({
+      ...prev,
+      isCustomized: true,
+      tasks: prev.tasks.map(t => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            status: targetStatus,
+            position: newPosition !== undefined ? newPosition : t.position,
+            updatedAt: Date.now()
+          };
+        }
+        return t;
+      })
+    }));
+    const statusLabel = targetStatus === 'TODO' ? 'Por Hacer' : targetStatus === 'IN_PROGRESS' ? 'En Progreso' : targetStatus === 'IN_REVIEW' ? 'En Revisión' : 'Completado';
+    triggerToast(`📋 Tarea movida a "${statusLabel}".`);
+  }, []);
+
+  const handleSaveResponsible = useCallback((data: Partial<Responsible>) => {
+    setWorkspaceState(prev => {
+      const list = prev.responsibles || [];
+      let next: Responsible[];
+      if (data.id) {
+        next = list.map(r => r.id === data.id ? { ...r, ...data, updatedAt: Date.now() } as Responsible : r);
+      } else {
+        const newResp: Responsible = {
+          id: 'resp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          name: data.name?.trim() || 'Nuevo Responsable',
+          color: data.color || '#007AFF',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        next = [...list, newResp];
+      }
+      return { ...prev, isCustomized: true, responsibles: next };
+    });
+    triggerToast('👤 Responsable guardado exitosamente.');
+  }, []);
+
+  const handleDeleteResponsible = useCallback(async (id: string, forceUnassign: boolean) => {
+    if (forceUnassign) {
+      await realtimeSync.createPreMutationBackup('BULK_UNASSIGN_RESPONSIBLE');
+    }
+    setWorkspaceState(prev => {
+      const updatedTasks = prev.tasks.map(t => {
+        if (t.assigneeIds && t.assigneeIds.includes(id)) {
+          return { ...t, assigneeIds: t.assigneeIds.filter(x => x !== id), updatedAt: Date.now() };
+        }
+        return t;
+      });
+      const updatedResps = (prev.responsibles || []).filter(r => r.id !== id);
+      return {
+        ...prev,
+        isCustomized: true,
+        tasks: updatedTasks,
+        responsibles: updatedResps
+      };
+    });
+    triggerToast('🗑️ Responsable eliminado del catálogo.');
+  }, []);
+
+  const handleArchiveResponsible = useCallback((id: string) => {
+    setWorkspaceState(prev => {
+      const updatedResps = (prev.responsibles || []).map(r => {
+        if (r.id === id) {
+          return {
+            ...r,
+            archivedAt: r.archivedAt ? undefined : Date.now(),
+            updatedAt: Date.now()
+          };
+        }
+        return r;
+      });
+      return { ...prev, isCustomized: true, responsibles: updatedResps };
+    });
+    triggerToast('📦 Estado de archivado actualizado.');
+  }, []);
+
+  const handleExecuteLegacyMigration = useCallback(async () => {
+    await realtimeSync.createPreMutationBackup('LEGACY_RESPONSIBLE_MIGRATION');
+    setWorkspaceState(prev => {
+      const currentResps = prev.responsibles || [];
+      const existingNames = new Map(currentResps.map(r => [r.name.trim().toLowerCase(), r]));
+      const newResps: Responsible[] = [];
+
+      const updatedTasks = prev.tasks.map(t => {
+        const legacyName = (t.assigneeName || t.assignee || '').trim();
+        if (!legacyName) return t;
+
+        // Skip if task already has assigneeIds
+        if (t.assigneeIds && t.assigneeIds.length > 0) return t;
+
+        const normalizedKey = legacyName.toLowerCase();
+        let resp = existingNames.get(normalizedKey);
+
+        if (!resp) {
+          resp = {
+            id: 'resp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+            name: legacyName,
+            color: '#007AFF',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+          existingNames.set(normalizedKey, resp);
+          newResps.push(resp);
+        }
+
+        return {
+          ...t,
+          assigneeIds: [resp.id],
+          updatedAt: Date.now()
+        };
+      });
+
+      return {
+        ...prev,
+        isCustomized: true,
+        responsibles: [...currentResps, ...newResps],
+        tasks: updatedTasks,
+        migrationMetadata: {
+          legacyAssigneesMigratedAt: Date.now(),
+          migrationVersion: 1
+        }
+      };
+    });
+    triggerToast('✨ Migración de responsables heredados completada con éxito.');
+  }, []);
 
   const handleSaveDocument = (data: Partial<Document>) => {
     setWorkspaceState(prev => {
@@ -1067,6 +1214,7 @@ export default function Home() {
             <TaskManager
               tasks={workspaceState.tasks}
               projects={workspaceState.projects}
+              responsibles={workspaceState.responsibles || []}
               activeProjectFilter={activeProjectFilter}
               onAddTask={() => handleOpenBatchModal('task')}
               onEditTask={(task) => {
@@ -1075,7 +1223,12 @@ export default function Home() {
                 setIsActionModalOpen(true);
               }}
               onDeleteTask={handleDeleteTask}
-              onAdvanceTaskStatus={handleAdvanceTaskStatus}
+              onMoveTaskPhase={handleMoveTaskPhase}
+              onOpenResponsibleManager={() => setIsResponsibleManagerOpen(true)}
+              onOpenLegacyMigration={() => setIsLegacyMigrationOpen(true)}
+              unmigratedTasksCount={
+                workspaceState.tasks.filter(t => (t.assigneeName || t.assignee) && (!t.assigneeIds || t.assigneeIds.length === 0)).length
+              }
             />
           )}
 
@@ -1236,6 +1389,7 @@ export default function Home() {
         onClose={() => setIsActionModalOpen(false)}
         projects={workspaceState.projects}
         categories={workspaceState.categories}
+        responsibles={workspaceState.responsibles || []}
         editType={editType}
         editItem={editItem}
         onSaveExpense={handleSaveExpense}
@@ -1260,6 +1414,24 @@ export default function Home() {
         onClose={() => setIsLightboxOpen(false)}
         document={lightboxDoc}
         projects={workspaceState.projects}
+      />
+
+      <ResponsibleManagerModal
+        isOpen={isResponsibleManagerOpen}
+        onClose={() => setIsResponsibleManagerOpen(false)}
+        responsibles={workspaceState.responsibles || []}
+        tasks={workspaceState.tasks}
+        onSaveResponsible={handleSaveResponsible}
+        onDeleteResponsible={handleDeleteResponsible}
+        onArchiveResponsible={handleArchiveResponsible}
+      />
+
+      <LegacyMigrationModal
+        isOpen={isLegacyMigrationOpen}
+        onClose={() => setIsLegacyMigrationOpen(false)}
+        responsibles={workspaceState.responsibles || []}
+        tasks={workspaceState.tasks}
+        onExecuteMigration={handleExecuteLegacyMigration}
       />
     </div>
   );
