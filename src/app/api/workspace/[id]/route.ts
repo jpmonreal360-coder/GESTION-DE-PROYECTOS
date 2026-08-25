@@ -337,18 +337,26 @@ export async function PUT(
     const checksum = computeStateChecksum(targetState);
     const stateJson = JSON.stringify(targetState);
 
-    // Call Upstash EVAL endpoint: Node passes expectedRevision, workspaceId, candidateUpdatedAt, checksum, stateJson
-    const evalRes = await fetch(`${url}/eval`, {
+    // Official Upstash REST API Pipeline execution for EVAL: [["EVAL", script, "1", key, args...]]
+    const evalRes = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        script: LUA_CAS_SCRIPT,
-        keys: [redisKey],
-        args: [String(expectedRev), workspaceId, String(candidateUpdatedAt), checksum, stateJson]
-      }),
+      body: JSON.stringify([
+        [
+          "EVAL",
+          LUA_CAS_SCRIPT,
+          "1",
+          redisKey,
+          String(expectedRev),
+          workspaceId,
+          String(candidateUpdatedAt),
+          checksum,
+          stateJson
+        ]
+      ]),
       cache: 'no-store'
     }).catch(() => null);
 
@@ -368,7 +376,11 @@ export async function PUT(
 
     const evalData = await evalRes.json().catch(() => null);
     let casResult: any = null;
-    if (evalData && evalData.result) {
+    if (Array.isArray(evalData) && evalData[0] && evalData[0].result) {
+      try {
+        casResult = typeof evalData[0].result === 'string' ? JSON.parse(evalData[0].result) : evalData[0].result;
+      } catch (e) {}
+    } else if (evalData && evalData.result) {
       try {
         casResult = typeof evalData.result === 'string' ? JSON.parse(evalData.result) : evalData.result;
       } catch (e) {}

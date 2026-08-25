@@ -36,8 +36,8 @@ if (!testUrl || !testToken) {
 
 function sendUpstashCommand(commandArray) {
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify(commandArray);
-    const u = new URL(testUrl + '/');
+    const data = JSON.stringify([commandArray]);
+    const u = new URL(testUrl + '/pipeline');
     const req = https.request({
       hostname: u.hostname,
       path: u.pathname + u.search,
@@ -52,7 +52,12 @@ function sendUpstashCommand(commandArray) {
       res.on('data', chunk => responseBody += chunk);
       res.on('end', () => {
         try {
-          resolve({ status: res.statusCode, data: JSON.parse(responseBody) });
+          const parsed = JSON.parse(responseBody);
+          if (Array.isArray(parsed) && parsed[0]) {
+            resolve({ status: res.statusCode, data: parsed[0] });
+          } else {
+            resolve({ status: res.statusCode, data: parsed });
+          }
         } catch (e) {
           resolve({ status: res.statusCode, raw: responseBody });
         }
