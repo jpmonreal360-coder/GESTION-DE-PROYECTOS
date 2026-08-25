@@ -86,7 +86,7 @@ function SortableTaskCard({
 
   // Find assigned responsibles
   const assignedResponsibles = (task.assigneeIds && task.assigneeIds.length > 0)
-    ? responsibles.filter(r => task.assigneeIds?.includes(r.id))
+    ? (responsibles || []).filter(r => task.assigneeIds?.includes(r.id))
     : [];
 
   const legacyName = task.assigneeName || task.assignee;
@@ -233,7 +233,7 @@ function DroppableColumn({
             <SortableTaskCard
               key={t.id}
               task={t}
-              responsibles={responsibles}
+              responsibles={responsibles || []}
               onEditTask={onEditTask}
               onDeleteTask={onDeleteTask}
               onMoveTaskPhase={onMoveTaskPhase}
@@ -434,7 +434,7 @@ export const TaskManager: React.FC<TaskManagerProps> = ({
               <tbody className="divide-y divide-neutral-200/50 dark:divide-neutral-800/50 text-xs">
                 {filteredTasks.map((t) => {
                   const assignedResps = (t.assigneeIds && t.assigneeIds.length > 0)
-                    ? responsibles.filter(r => t.assigneeIds?.includes(r.id))
+                    ? (responsibles || []).filter(r => t.assigneeIds?.includes(r.id))
                     : [];
 
                   return (
