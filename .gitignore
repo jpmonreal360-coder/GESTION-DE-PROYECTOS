@@ -21,3 +21,7 @@ yarn-error.log*
 
 # Scratch Audit Scripts
 /scratch/
+
+.vercel
+.env*
+*.tsbuildinfo

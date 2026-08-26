@@ -63,6 +63,26 @@ export interface Task {
   tableId?: string;
 }
 
+export type AttachmentRef = {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  documentId?: string;
+  storageKey: string;       // identidad estable en Vercel Blob; nunca una URL firmada
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  sha256: string;
+  createdAt: number;
+  status: 'uploaded';
+};
+
+export type AttachmentView = AttachmentRef & {
+  accessUrl?: string;
+  expiresAt?: number;
+  objectUrl?: string;
+};
+
 export interface Expense {
   id: string;
   type: TransactionType | string;
@@ -74,6 +94,7 @@ export interface Expense {
   date: string;
   status?: ExpenseStatus | string;
   receiptUrl?: string;
+  attachment?: AttachmentRef;
   notes?: string;
   tableId?: string;
 }
@@ -87,6 +108,7 @@ export interface Document {
   fileType?: FileType;
   fileUrl?: string;
   previewUrl?: string;
+  attachment?: AttachmentRef;
   icon?: string;
   content?: string;
   description?: string;
