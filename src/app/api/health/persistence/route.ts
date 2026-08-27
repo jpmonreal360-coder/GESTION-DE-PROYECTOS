@@ -3,10 +3,38 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-function getUpstashConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  return { url, token };
+function getUpstashConfig(): { url?: string; token?: string } {
+  const vercelEnv = process.env.VERCEL_ENV;
+  const isTestOrPreview =
+    vercelEnv === 'preview' ||
+    vercelEnv === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
+
+  if (isTestOrPreview) {
+    const testUrl = process.env.TEST_UPSTASH_REDIS_REST_URL;
+    const testToken = process.env.TEST_UPSTASH_REDIS_REST_TOKEN;
+
+    if (!testUrl || !testToken || testUrl === '[SENSITIVE]' || testToken === '[SENSITIVE]') {
+      return { url: undefined, token: undefined };
+    }
+
+    return {
+      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, ''),
+      token: testToken.trim().replace(/^["']|["']$/g, '')
+    };
+  }
+
+  let url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  let token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (url === '[SENSITIVE]') url = undefined;
+  if (token === '[SENSITIVE]') token = undefined;
+
+  if (url) url = url.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '');
+  if (token) token = token.trim().replace(/^["']|["']$/g, '');
+
+  return { url: url || undefined, token: token || undefined };
 }
 
 function maskKey(key: string): string {

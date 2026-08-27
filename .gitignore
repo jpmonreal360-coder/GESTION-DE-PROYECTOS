@@ -25,3 +25,7 @@ yarn-error.log*
 .vercel
 .env*
 *.tsbuildinfo
+/scripts/
+tests/httpBlobIntegration.test.js
+
+.env*

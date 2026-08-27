@@ -55,7 +55,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           try { payload = JSON.parse(clientPayload); } catch (e) {}
         }
 
-        const workspaceId = (payload.workspaceId || 'rc_ws_main').replace(/[^a-zA-Z0-9_.-]/g, '_');
+        const rawWorkspaceId = payload.workspaceId;
+        if (!rawWorkspaceId || typeof rawWorkspaceId !== 'string' || rawWorkspaceId.trim() === '') {
+          throw new Error('WORKSPACE_ID_REQUIRED: workspaceId es requerido en clientPayload.');
+        }
+
+        const isPreviewEnv = process.env.VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'test';
+        if (isPreviewEnv && (rawWorkspaceId === 'rc_ws_main' || rawWorkspaceId === 'ws_rc_ws_main')) {
+          throw new Error('FORBIDDEN_PREVIEW_WORKSPACE: El acceso a workspace de producción está prohibido en entorno Preview/Test.');
+        }
+
+        const workspaceId = rawWorkspaceId.replace(/[^a-zA-Z0-9_.-]/g, '_');
         const projectId = (payload.projectId || 'PRJ-01').replace(/[^a-zA-Z0-9_.-]/g, '_');
         const isImage = payload.mimeType ? payload.mimeType.startsWith('image/') : false;
         const maximumSizeInBytes = isImage ? 10 * 1024 * 1024 : 20 * 1024 * 1024;

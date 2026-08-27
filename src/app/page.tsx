@@ -152,7 +152,41 @@ export default function Home() {
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareableUrl, setShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [workspaceId, setWorkspaceId] = useState<string>('rc_ws_main');
+
+  const resolveDefaultWorkspace = () => {
+    const isPreviewOrTest =
+      process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' ||
+      process.env.NODE_ENV === 'test' ||
+      (typeof window !== 'undefined' && (window.location.host.includes('-test') || window.location.hash.includes('rc_ws_test')));
+
+    const defaultWs = isPreviewOrTest ? 'rc_ws_test' : 'rc_ws_main';
+
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      const search = window.location.search;
+
+      let parsedWs = '';
+      if (path.startsWith('/w/')) {
+        parsedWs = path.split('/w/')[1].split('/')[0];
+      } else if (hash.includes('w=')) {
+        parsedWs = hash.split('w=')[1].split('&')[0];
+      } else if (search.includes('w=')) {
+        const params = new URLSearchParams(search);
+        parsedWs = params.get('w') || '';
+      }
+
+      if (parsedWs) {
+        if (isPreviewOrTest && (parsedWs === 'rc_ws_main' || parsedWs === 'ws_rc_ws_main')) {
+          return 'rc_ws_test';
+        }
+        return parsedWs;
+      }
+    }
+    return defaultWs;
+  };
+
+  const [workspaceId, setWorkspaceId] = useState<string>(resolveDefaultWorkspace);
   const [conflictDetails, setConflictDetails] = useState<any>(null);
 
   // Single Unified Workspace State
@@ -273,7 +307,7 @@ export default function Home() {
     let cancelled = false;
 
     async function bootstrap() {
-      let wsId = 'rc_ws_main';
+      let wsId = resolveDefaultWorkspace();
       let stateFromUrl: any = null;
 
       if (typeof window !== 'undefined') {
@@ -296,8 +330,17 @@ export default function Home() {
           wsId = hash.split('w=')[1].split('&')[0];
         } else if (search.includes('w=')) {
           const params = new URLSearchParams(search);
-          wsId = params.get('w') || 'rc_ws_main';
+          wsId = params.get('w') || resolveDefaultWorkspace();
         }
+      }
+
+      const isPreviewOrTest =
+        process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' ||
+        process.env.NODE_ENV === 'test' ||
+        (typeof window !== 'undefined' && (window.location.host.includes('-test') || window.location.hash.includes('rc_ws_test')));
+
+      if (isPreviewOrTest && (wsId === 'rc_ws_main' || wsId === 'ws_rc_ws_main')) {
+        wsId = 'rc_ws_test';
       }
 
       setWorkspaceId(wsId);

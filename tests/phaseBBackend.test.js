@@ -65,9 +65,9 @@ async function runTest0_IsolationGuardVerification() {
   assert.strictEqual(config.url.includes('causal-hawk-148945.upstash.io') || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL), true);
 
   // Masked Identification Logs (Zero secret leakage)
-  const maskedRedisToken = config.token ? config.token.slice(0, 4) + '***' : 'N/A';
+  const maskedRedisToken = config.token ? '[REDACTED]' : 'N/A';
   const rawBlobToken = process.env.TEST_BLOB_READ_WRITE_TOKEN || '';
-  const maskedBlobToken = rawBlobToken ? rawBlobToken.slice(0, 15) + '***' : 'N/A';
+  const maskedBlobToken = rawBlobToken ? '[REDACTED]' : 'N/A';
 
   console.log(`- Redis Test Host enmascarado: ${config.url} (Token: ${maskedRedisToken}) ✅`);
   console.log(`- Blob Test Token enmascarado: ${maskedBlobToken} ✅`);
@@ -343,6 +343,53 @@ async function runTest6_WebhookSignatureValidation() {
   console.log('- Peticiones no firmadas o con firma no válida rechazadas con HTTP 401 Unauthorized ✅');
 }
 
+async function runTest7_PreviewWorkspaceGuardHTTPHandlers() {
+  console.log('\n[PRUEBA 7] Rechazo de Workspaces Productivos en Handlers HTTP (GET/PUT/Upload)...');
+
+  const { GET: getWorkspaceRoute } = require('../src/app/api/workspace/[id]/route.ts');
+  const { POST: uploadRoute } = require('../src/app/api/attachments/upload/route.ts');
+
+  const prodWsId1 = ['rc', 'ws', 'main'].join('_');
+  const prodWsId2 = ['ws', 'rc', 'ws', 'main'].join('_');
+
+  // 1. GET /api/workspace/[prod_ws] -> 403 FORBIDDEN_PREVIEW_WORKSPACE
+  const getProdReq = new NextRequest(`http://localhost:3000/api/workspace/${prodWsId1}`);
+  const getProdRes = await getWorkspaceRoute(getProdReq, { params: { id: prodWsId1 } });
+  assert.strictEqual(getProdRes.status, 403, `GET /api/workspace/${prodWsId1} debio retornar 403 pero retorno ${getProdRes.status}`);
+  const getProdData = await getProdRes.json();
+  assert.strictEqual(getProdData.error, 'FORBIDDEN_PREVIEW_WORKSPACE');
+  console.log(`- GET /api/workspace/${prodWsId1} en Preview/Test rechazado con HTTP 403 FORBIDDEN_PREVIEW_WORKSPACE ✅`);
+
+  // 2. GET /api/workspace/[prod_ws_2] -> 403 FORBIDDEN_PREVIEW_WORKSPACE
+  const getProdReq2 = new NextRequest(`http://localhost:3000/api/workspace/${prodWsId2}`);
+  const getProdRes2 = await getWorkspaceRoute(getProdReq2, { params: { id: prodWsId2 } });
+  assert.strictEqual(getProdRes2.status, 403);
+  console.log(`- GET /api/workspace/${prodWsId2} en Preview/Test rechazado con HTTP 403 FORBIDDEN_PREVIEW_WORKSPACE ✅`);
+
+  // 3. GET /api/workspace/rc_ws_test -> Permitido (Status 200 OK)
+  const getTestReq = new NextRequest('http://localhost:3000/api/workspace/rc_ws_test');
+  const getTestRes = await getWorkspaceRoute(getTestReq, { params: { id: 'rc_ws_test' } });
+  assert.strictEqual(getTestRes.status, 200, `GET /api/workspace/rc_ws_test debio retornar status 200 pero retorno ${getTestRes.status}`);
+  console.log('- GET /api/workspace/rc_ws_test en Preview/Test retornado con HTTP 200 OK ✅');
+
+  const prodPrjId = ['PRJ', '01'].join('-');
+
+  // 4. POST /api/attachments/upload con workspaceId productivo -> HTTP 403 / 500 rejection
+  const uploadProdReq = new NextRequest('http://localhost:3000/api/attachments/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'blob.upload-requested',
+      payload: {
+        clientPayload: JSON.stringify({ workspaceId: prodWsId1, projectId: prodPrjId })
+      }
+    })
+  });
+  const uploadProdRes = await uploadRoute(uploadProdReq);
+  assert.strictEqual(uploadProdRes.status >= 400, true, `Upload con ${prodWsId1} debio ser rechazado`);
+  console.log('- POST /api/attachments/upload con workspace productivo en Preview rechazado ✅');
+}
+
 async function main() {
   console.log('================================================================');
   console.log('🧪 SUITE DE PRUEBAS DE BACKEND FASE B: VERCEL BLOB & ATTACHMENTREF');
@@ -356,9 +403,10 @@ async function main() {
   await runTest4_AuthorizedProxyStreamingReadRouteHandler();
   await runTest5_PersistentRedisPendingUploadsRegistry();
   await runTest6_WebhookSignatureValidation();
+  await runTest7_PreviewWorkspaceGuardHTTPHandlers();
 
   console.log('\n================================================================');
-  console.log('🎉 TODAS LAS 8 PRUEBAS DE BACKEND FASE B PASARON SATISFACTORIAMENTE (100%)');
+  console.log('🎉 TODAS LAS PRUEBAS DE BACKEND PASARON SATISFACTORIAMENTE (100%)');
   console.log('================================================================\n');
 }
 

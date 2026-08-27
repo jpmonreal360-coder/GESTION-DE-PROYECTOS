@@ -30,19 +30,38 @@ function getBuildHeaders(extraHeaders: Record<string, string> = {}) {
   };
 }
 
-function getUpstashConfig() {
+function getUpstashConfig(): { url?: string; token?: string } {
+  const vercelEnv = process.env.VERCEL_ENV;
+  const isTestOrPreview =
+    vercelEnv === 'preview' ||
+    vercelEnv === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
+
+  if (isTestOrPreview) {
+    const testUrl = process.env.TEST_UPSTASH_REDIS_REST_URL;
+    const testToken = process.env.TEST_UPSTASH_REDIS_REST_TOKEN;
+
+    if (!testUrl || !testToken || testUrl === '[SENSITIVE]' || testToken === '[SENSITIVE]') {
+      return { url: undefined, token: undefined };
+    }
+
+    return {
+      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, ''),
+      token: testToken.trim().replace(/^["']|["']$/g, '')
+    };
+  }
+
   let url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   let token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (url) {
-    url = url.trim().replace(/^["']|["']$/g, '');
-    if (url.endsWith('/')) {
-      url = url.slice(0, -1);
-    }
-  }
-  if (token) {
-    token = token.trim().replace(/^["']|["']$/g, '');
-  }
-  return { url, token };
+
+  if (url === '[SENSITIVE]') url = undefined;
+  if (token === '[SENSITIVE]') token = undefined;
+
+  if (url) url = url.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '');
+  if (token) token = token.trim().replace(/^["']|["']$/g, '');
+
+  return { url: url || undefined, token: token || undefined };
 }
 
 function getRedisKey(wsId: string): string {
@@ -195,7 +214,24 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const workspaceId = params.id || 'rc_ws_main';
+  const workspaceId = params.id;
+
+  if (!workspaceId || typeof workspaceId !== 'string' || workspaceId.trim() === '') {
+    return NextResponse.json(
+      { error: 'WORKSPACE_ID_REQUIRED', message: 'El parámetro workspaceId es requerido.' },
+      { status: 400, headers: getBuildHeaders() }
+    );
+  }
+
+  // Server Preview Guard: Reject production workspace access in Preview or Test environment BEFORE querying Redis
+  const isPreviewEnv = process.env.VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'test';
+  if (isPreviewEnv && (workspaceId === 'rc_ws_main' || workspaceId === 'ws_rc_ws_main')) {
+    return NextResponse.json(
+      { error: 'FORBIDDEN_PREVIEW_WORKSPACE', message: 'El acceso a workspace de producción está prohibido en entorno Preview/Test.' },
+      { status: 403, headers: getBuildHeaders() }
+    );
+  }
+
   const { url, token } = getUpstashConfig();
 
   if (!url || !token) {
@@ -278,7 +314,24 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const workspaceId = params.id || 'rc_ws_main';
+  const workspaceId = params.id;
+
+  if (!workspaceId || typeof workspaceId !== 'string' || workspaceId.trim() === '') {
+    return NextResponse.json(
+      { error: 'WORKSPACE_ID_REQUIRED', message: 'El parámetro workspaceId es requerido.' },
+      { status: 400, headers: getBuildHeaders() }
+    );
+  }
+
+  // Server Preview Guard: Reject production workspace access in Preview or Test environment BEFORE querying Redis
+  const isPreviewEnv = process.env.VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'test';
+  if (isPreviewEnv && (workspaceId === 'rc_ws_main' || workspaceId === 'ws_rc_ws_main')) {
+    return NextResponse.json(
+      { error: 'FORBIDDEN_PREVIEW_WORKSPACE', message: 'El acceso a workspace de producción está prohibido en entorno Preview/Test.' },
+      { status: 403, headers: getBuildHeaders() }
+    );
+  }
+
   const { url, token } = getUpstashConfig();
 
   if (!url || !token) {

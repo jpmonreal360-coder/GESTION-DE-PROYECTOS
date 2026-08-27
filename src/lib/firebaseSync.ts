@@ -63,7 +63,7 @@ class RealtimeSyncEngine {
   private onStateReceivedCallback: ((data: SyncPayload) => void) | null = null;
   private onStatusChangeCallback: ((status: SaveStatus, conflict?: ConflictDetails) => void) | null = null;
   private pollIntervalId: number | null = null;
-  private activeWorkspaceId: string = 'rc_ws_main';
+  private activeWorkspaceId: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -83,12 +83,24 @@ class RealtimeSyncEngine {
   }
 
   public setWorkspaceId(id: string) {
-    if (id && id.trim() !== '') {
-      this.activeWorkspaceId = id.trim();
+    if (!id || typeof id !== 'string' || id.trim() === '') return;
+    const trimmed = id.trim();
+
+    const isPreviewOrTest =
+      process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' ||
+      process.env.NODE_ENV === 'test' ||
+      (typeof window !== 'undefined' && (window.location.host.includes('-test') || window.location.hash.includes('rc_ws_test')));
+
+    if (isPreviewOrTest && (trimmed === 'rc_ws_main' || trimmed === 'ws_rc_ws_main')) {
+      console.warn(`[REALTIME SYNC GUARD] Intento de usar workspace productivo (${trimmed}) en entorno Preview/Test. Redirigiendo a rc_ws_test.`);
+      this.activeWorkspaceId = 'rc_ws_test';
+      return;
     }
+
+    this.activeWorkspaceId = trimmed;
   }
 
-  public getWorkspaceId(): string {
+  public getWorkspaceId(): string | null {
     return this.activeWorkspaceId;
   }
 
@@ -126,11 +138,14 @@ class RealtimeSyncEngine {
   // Subscribe to Cloud changes with strictly read-only polling
   public subscribe(onStateReceived: (data: SyncPayload) => void): () => void {
     this.onStateReceivedCallback = onStateReceived;
-    void this.fetchFromCloud();
+
+    if (this.activeWorkspaceId) {
+      void this.fetchFromCloud();
+    }
 
     if (!this.pollIntervalId && typeof window !== 'undefined') {
       this.pollIntervalId = window.setInterval(() => {
-        if (!this.isBroadcasting && this.currentStatus !== 'conflict') {
+        if (this.activeWorkspaceId && !this.isBroadcasting && this.currentStatus !== 'conflict') {
           void this.fetchFromCloud();
         }
       }, 3000);
@@ -147,6 +162,10 @@ class RealtimeSyncEngine {
 
   // Direct Anti-Cache Read targeting workspaceId API Route
   public async fetchFromCloud(): Promise<SyncPayload | null> {
+    if (!this.activeWorkspaceId) {
+      return null;
+    }
+
     const headers = {
       'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
@@ -196,7 +215,7 @@ class RealtimeSyncEngine {
 
   // Explicit Save to Cloud with Monotonic Revision Check & 409 Conflict Protection
   public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>): Promise<{ success: boolean; conflict?: boolean; offline?: boolean }> {
-    if (this.isBroadcasting || this.currentStatus === 'offline-readonly') {
+    if (!this.activeWorkspaceId || this.isBroadcasting || this.currentStatus === 'offline-readonly') {
       return { success: false, offline: this.currentStatus === 'offline-readonly' };
     }
 
@@ -292,6 +311,7 @@ class RealtimeSyncEngine {
 
   // Pre-mutation backup helper before bulk/destructive operations
   public async createPreMutationBackup(reason: string): Promise<boolean> {
+    if (!this.activeWorkspaceId) return false;
     try {
       const backupUrl = `/api/workspace/${encodeURIComponent(this.activeWorkspaceId)}/backups`;
       const res = await fetch(backupUrl, {
