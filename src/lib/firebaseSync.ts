@@ -214,7 +214,7 @@ class RealtimeSyncEngine {
   }
 
   // Explicit Save to Cloud with Monotonic Revision Check & 409 Conflict Protection
-  public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>): Promise<{ success: boolean; conflict?: boolean; offline?: boolean }> {
+  public async saveToCloud(stateObj: Omit<SyncPayload, 'workspaceId' | 'updatedAt'>, retryCount: number = 0): Promise<{ success: boolean; conflict?: boolean; offline?: boolean }> {
     if (!this.activeWorkspaceId || this.isBroadcasting || this.currentStatus === 'offline-readonly') {
       return { success: false, offline: this.currentStatus === 'offline-readonly' };
     }
@@ -259,6 +259,14 @@ class RealtimeSyncEngine {
             expectedRevision,
             updatedAt: now
           }));
+
+          // Automatic seamless retry for single-session rapid edits (up to 2 retries)
+          if (conflictData && conflictData.serverRevision && retryCount < 2) {
+            this.isBroadcasting = false;
+            this.lastRemoteRevision = Math.max(this.lastRemoteRevision, conflictData.serverRevision);
+            this.lastRemoteTimestamp = Math.max(this.lastRemoteTimestamp, Number(conflictData.updatedAt || now));
+            return this.saveToCloud(stateObj, retryCount + 1);
+          }
 
           this.setSaveStatus('conflict', conflictData);
           return { success: false, conflict: true };

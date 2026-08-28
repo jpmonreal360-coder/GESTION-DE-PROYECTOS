@@ -1406,6 +1406,35 @@ export default function Home() {
               <button
                 onClick={async () => {
                   const remote = await realtimeSync.fetchFromCloud();
+                  if (remote && remote.revision) {
+                    realtimeSync.setLastRemoteRevision(remote.revision);
+                    realtimeSync.setLastRemoteTimestamp(Number(remote.updatedAt || Date.now()));
+                  } else if (conflictDetails?.serverRevision) {
+                    realtimeSync.setLastRemoteRevision(conflictDetails.serverRevision);
+                  }
+                  setSaveStatus('ready');
+                  setConflictDetails(null);
+                  await queueSave({
+                    isCustomized: true,
+                    projects: workspaceState.projects,
+                    expenses: workspaceState.expenses,
+                    tasks: workspaceState.tasks,
+                    documents: workspaceState.documents,
+                    wikiDocs: workspaceState.wikiDocs,
+                    categories: workspaceState.categories,
+                    projectCategories: workspaceState.projectCategories,
+                    batchTables: workspaceState.batchTables,
+                  });
+                  triggerToast('☁️ Cambios locales guardados en la nube con éxito.');
+                }}
+                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <Cloud className="w-4 h-4" />
+                <span>Guardar Mis Cambios Locales</span>
+              </button>
+              <button
+                onClick={async () => {
+                  const remote = await realtimeSync.fetchFromCloud();
                   if (remote) {
                     applyWorkspaceState(remote);
                     setSaveStatus('ready');
@@ -1423,7 +1452,7 @@ export default function Home() {
                 className="px-4 py-2.5 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                <span>Exportar JSON Local</span>
+                <span>Exportar JSON</span>
               </button>
             </div>
           </div>
