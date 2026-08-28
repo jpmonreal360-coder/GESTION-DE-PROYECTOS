@@ -271,7 +271,7 @@ class RealtimeSyncEngine {
 
         if (apiRes.status === 200 || apiRes.status === 201) {
           const resData = await apiRes.json().catch(() => null);
-          if (resData && Array.isArray(resData.projects)) {
+          if (resData && (resData.revision || Array.isArray(resData.projects))) {
             serverSaved = true;
             const serverTs = Number(resData.updatedAt || now);
             const serverRev = Number(resData.revision || expectedRevision + 1);
