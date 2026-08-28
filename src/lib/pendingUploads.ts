@@ -19,8 +19,8 @@ export function getUpstashConfig(customConfig?: RedisConfig): RedisConfig {
     }
 
     return {
-      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, ''),
-      token: testToken.trim().replace(/^["']|["']$/g, '')
+      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '').replace(/[\r\n]/g, ''),
+      token: testToken.trim().replace(/^["']|["']$/g, '').replace(/[\r\n]/g, '')
     };
   }
 
@@ -72,7 +72,7 @@ export async function registerPendingUpload(record: PendingUploadRecord, customC
   }
 
   const key = getPendingUploadKey(record.uploadId);
-  const ttlSeconds = (process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL)) ? 60 : 7 * 24 * 3600;
+  const ttlSeconds = 24 * 3600; // 24 hours initial upload window
 
   try {
     const res = await fetch(`${url}/set/${encodeURIComponent(key)}?EX=${ttlSeconds}`, {
@@ -118,7 +118,7 @@ export async function markPendingUploadCompleted(uploadId: string, record?: Part
     }
 
     current.completed = true;
-    const ttlSeconds = (process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL)) ? 60 : 7 * 24 * 3600;
+    const ttlSeconds = 30 * 24 * 3600; // 30 days persistent authorization TTL
 
     await fetch(`${url}/set/${encodeURIComponent(key)}?EX=${ttlSeconds}`, {
       method: 'POST',

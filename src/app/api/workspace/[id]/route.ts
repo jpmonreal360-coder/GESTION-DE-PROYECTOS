@@ -47,8 +47,8 @@ function getUpstashConfig(): { url?: string; token?: string } {
     }
 
     return {
-      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, ''),
-      token: testToken.trim().replace(/^["']|["']$/g, '')
+      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '').replace(/[\r\n]/g, ''),
+      token: testToken.trim().replace(/^["']|["']$/g, '').replace(/[\r\n]/g, '')
     };
   }
 

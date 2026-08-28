@@ -20,8 +20,8 @@ function getUpstashConfig(): { url?: string; token?: string } {
     }
 
     return {
-      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, ''),
-      token: testToken.trim().replace(/^["']|["']$/g, '')
+      url: testUrl.trim().replace(/^["']|["']$/g, '').replace(/\/$/, '').replace(/[\r\n]/g, ''),
+      token: testToken.trim().replace(/^["']|["']$/g, '').replace(/[\r\n]/g, '')
     };
   }
 
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
   try {
     const wsId = 'rc_ws_main';
     const redisKey = `ws_${wsId}`;
+    let fetchError: string | null = null;
     const res = await fetch(`${url}/get/${encodeURIComponent(redisKey)}`, {
       method: 'GET',
       headers: {
@@ -75,7 +76,11 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
       cache: 'no-store'
-    }).catch(() => null);
+    }).catch((err) => {
+      fetchError = err.message || String(err);
+      console.error('[HEALTH PERSISTENCE FETCH ERROR]:', fetchError);
+      return null;
+    });
 
     if (!res || !res.ok) {
       return NextResponse.json(
@@ -83,6 +88,7 @@ export async function GET(request: NextRequest) {
           provider: 'upstash',
           status: 'error',
           error: 'DATABASE_UNREACHABLE',
+          details: fetchError || (res ? `HTTP ${res.status} ${res.statusText}` : 'Fetch request failed'),
           commit
         },
         { status: 503, headers: baseHeaders }
