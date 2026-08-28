@@ -17,7 +17,7 @@ import { ResponsibleManagerModal } from '@/components/modals/ResponsibleManagerM
 import { LegacyMigrationModal } from '@/components/modals/LegacyMigrationModal';
 import { Project, Expense, Task, Document, WikiDoc, BatchTable, Responsible, TaskStatus } from '@/types';
 import { realtimeSync, SyncPayload, SaveStatus, urlSafeEncodeObj, urlSafeDecodeStr } from '@/lib/firebaseSync';
-import { X, Copy, CheckCircle, AlertTriangle, RefreshCw, Download } from 'lucide-react';
+import { X, Copy, CheckCircle, AlertTriangle, RefreshCw, Download, Cloud } from 'lucide-react';
 
 interface WorkspaceState {
   isCustomized: boolean;
