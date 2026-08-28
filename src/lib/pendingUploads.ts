@@ -4,7 +4,11 @@ export interface RedisConfig {
 }
 
 export function getUpstashConfig(customConfig?: RedisConfig): RedisConfig {
-  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
+  const isTestEnv =
+    process.env.VERCEL_ENV === 'preview' ||
+    process.env.VERCEL_ENV === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
 
   if (isTestEnv && !customConfig) {
     const testUrl = process.env.TEST_UPSTASH_REDIS_REST_URL;
@@ -51,7 +55,11 @@ export interface PendingUploadRecord {
  * Using `TEST_ONLY_att_pending:` guarantees 0% key collision with any existing workspace state, backups, or system keys.
  */
 export function getPendingUploadKey(uploadId: string): string {
-  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
+  const isTestEnv =
+    process.env.VERCEL_ENV === 'preview' ||
+    process.env.VERCEL_ENV === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
   const prefix = isTestEnv ? 'TEST_ONLY_att_pending' : 'att_pending';
   return `${prefix}:${uploadId.trim()}`;
 }

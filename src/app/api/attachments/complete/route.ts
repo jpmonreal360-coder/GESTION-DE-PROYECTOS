@@ -25,27 +25,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-
-    const fetcher = async (storageKey: string) => {
-      const blobEndpoint = `https://blob.vercel-storage.com/${storageKey}`;
-      const fetchBlobRes = await fetch(blobEndpoint, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'x-api-version': '7'
-        },
-        cache: 'no-store'
-      });
-
-      if (!fetchBlobRes.ok) {
-        return { ok: false, status: fetchBlobRes.status };
-      }
-
-      const arrayBuffer = await fetchBlobRes.arrayBuffer();
-      return { ok: true, status: 200, buffer: Buffer.from(arrayBuffer) };
-    };
-
-    const result = await processCompleteAttachment(body, fetcher);
+    const result = await processCompleteAttachment(body);
     return NextResponse.json(result.body, { status: result.status });
 
   } catch (err: any) {

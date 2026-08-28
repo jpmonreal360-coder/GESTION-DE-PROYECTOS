@@ -55,7 +55,11 @@ export async function processGetAttachment(
     });
   }
 
-  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
+  const isTestEnv =
+    process.env.VERCEL_ENV === 'preview' ||
+    process.env.VERCEL_ENV === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
   let blobToken: string | undefined;
 
   if (isTestEnv) {

@@ -25,10 +25,7 @@ export async function GET(
     const record = await getPendingUpload(attachmentId);
     let resolvedStorageKey = record?.storageKey;
 
-    // Direct storageKey string support for test environment paths
-    if (!resolvedStorageKey && attachmentId.startsWith('workspaces/')) {
-      resolvedStorageKey = attachmentId;
-    }
+
 
     if (!resolvedStorageKey) {
       return NextResponse.json(

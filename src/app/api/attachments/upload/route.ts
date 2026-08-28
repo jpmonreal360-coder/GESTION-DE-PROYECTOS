@@ -17,7 +17,11 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 function getBlobToken(): string | null {
-  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
+  const isTestEnv =
+    process.env.VERCEL_ENV === 'preview' ||
+    process.env.VERCEL_ENV === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.TEST_UPSTASH_REDIS_REST_URL);
   let token: string | undefined;
 
   if (isTestEnv) {
@@ -47,6 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = (await request.json()) as HandleUploadBody;
 
     const jsonResponse = await handleUpload({
+      token,
       body,
       request,
       onBeforeGenerateToken: async (pathname: string, clientPayload: string | null) => {
@@ -88,6 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(jsonResponse, { status: 200 });
 
   } catch (error: any) {
+    console.error('[UPLOAD ROUTE ERROR LOG]', error.message || error);
     return NextResponse.json(
       { error: 'CLIENT_UPLOAD_TOKEN_ERROR', message: error.message || 'Error al generar token de subida.' },
       { status: 400 }
