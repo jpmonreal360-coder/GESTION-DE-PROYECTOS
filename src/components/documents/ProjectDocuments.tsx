@@ -171,8 +171,29 @@ export const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({
                 <h3 className="text-xs sm:text-sm font-bold leading-snug text-neutral-900 dark:text-neutral-100 mb-1 break-words">
                   {doc.title}
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2 break-words">
-                  {doc.description || doc.content}
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-3 break-words">
+                  {((text?: string) => {
+                    if (!text) return null;
+                    const urlRegex = /(https?:\/\/[^\s]+)/g;
+                    const parts = text.split(urlRegex);
+                    return parts.map((part, i) => {
+                      if (part.match(urlRegex)) {
+                        return (
+                          <a
+                            key={i}
+                            href={part}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-blue-500 dark:text-blue-400 hover:underline font-semibold"
+                          >
+                            {part}
+                          </a>
+                        );
+                      }
+                      return part;
+                    });
+                  })(doc.description || doc.content)}
                 </p>
                 <div className="text-[11px] text-neutral-400 mt-2 font-mono">📅 Fecha: {doc.date || doc.updatedAt}</div>
               </div>

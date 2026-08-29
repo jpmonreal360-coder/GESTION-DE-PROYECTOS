@@ -117,12 +117,14 @@ export const ActionModal: React.FC<ActionModalProps> = ({
       setIsCustomCategory(false);
       setProjectId(editItem ? editItem.projectId : projects[0]?.id || 'PRJ-01');
       setFinanceDate(editItem?.date || new Date().toISOString().split('T')[0]);
+      setNotes(editItem?.notes || '');
     } else if (editType === 'doc' || (editItem && editItem.format)) {
       setFormType('doc');
       setTitle(editItem ? editItem.title : '');
       setDocFormat(editItem?.format || 'image');
       setProjectId(editItem ? editItem.projectId : projects[0]?.id || 'PRJ-01');
       setDocDate(editItem?.date || editItem?.updatedAt || new Date().toISOString().split('T')[0]);
+      setNotes(editItem?.description || editItem?.notes || '');
     } else {
       setTitle('');
       setAmount('');
@@ -328,6 +330,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
         category: finalCategory,
         projectId,
         date: financeDate,
+        notes: notes.trim() || undefined,
         status: 'PAID',
       });
     } else if (formType === 'task') {
@@ -372,7 +375,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
             fileUrl: `/api/attachments/${ref.id}`,
             previewUrl: `/api/attachments/${ref.id}`,
             attachment: ref,
-            description: `Adjunto Vercel Blob en ${projectId} (SHA-256: ${ref.sha256.substring(0, 12)}...).`,
+            description: notes.trim() || `Adjunto Vercel Blob en ${projectId} (SHA-256: ${ref.sha256.substring(0, 12)}...).`,
           });
         });
       } else if (docFormat === 'sheets' || docFormat === 'link') {
@@ -390,10 +393,10 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           updatedAt: docDate,
           fileUrl,
           previewUrl: fileUrl,
-          description: `Enlace externo (${typeLabel}).`,
+          description: notes.trim() || `Enlace externo (${typeLabel}).`,
         });
       } else if (editItem && (editType === 'doc' || editItem.format)) {
-        // Edit existing document metadata (title, date, project) when no new file upload is queued
+        // Edit existing document metadata (title, date, project, notes) when no new file upload is queued
         onSaveDocument({
           ...editItem,
           title: title.trim() || editItem.title,
@@ -401,6 +404,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           date: docDate,
           updatedAt: docDate,
           format: docFormat || editItem.format || 'image',
+          description: notes.trim() || editItem.description || '',
         });
       }
     }
@@ -595,6 +599,19 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                   />
                 </div>
               )}
+
+              <div>
+                <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+                  Notas / Enlaces Adicionales (Opcional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Ej. Pegar observaciones, referencias o enlaces adicionales (https://...)"
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none resize-none text-xs"
+                />
+              </div>
             </div>
           )}
 
@@ -666,6 +683,19 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                   value={financeDate}
                   onChange={(e) => setFinanceDate(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+                  Notas / Enlaces Adicionales (Opcional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Ej. Pegar folio de factura, observaciones o enlace de referencia..."
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 outline-none resize-none text-xs"
                 />
               </div>
             </div>
