@@ -153,13 +153,19 @@ export const ActionModal: React.FC<ActionModalProps> = ({
   const addFilesToQueue = useCallback((files: File[]) => {
     if (!files || files.length === 0) return;
 
-    const newItems: PendingFileUpload[] = files.map(file => ({
-      id: `upl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      file,
-      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : '',
-      status: 'pending',
-      progress: 0
-    }));
+    const MAX_DOC_SIZE = 500 * 1024 * 1024; // 500 MB max
+
+    const newItems: PendingFileUpload[] = files.map(file => {
+      const isTooLarge = file.size > MAX_DOC_SIZE;
+      return {
+        id: `upl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        file,
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : '',
+        status: isTooLarge ? 'failed' : 'pending',
+        progress: 0,
+        errorMessage: isTooLarge ? 'Excede el límite de 500 MB' : undefined
+      };
+    });
 
     setFormType('doc');
     setDocFormat(files[0].type.includes('pdf') ? 'pdf' : 'image');
@@ -554,8 +560,9 @@ export const ActionModal: React.FC<ActionModalProps> = ({
                           </span>
                         )}
                         {item.status === 'failed' && (
-                          <span className="text-red-400 flex items-center gap-1" title={item.errorMessage}>
-                            <AlertCircle className="w-3.5 h-3.5" /> Error
+                          <span className="text-red-400 flex items-center gap-1 font-medium" title={item.errorMessage}>
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate max-w-[150px]">{item.errorMessage || 'Error'}</span>
                           </span>
                         )}
                       </div>

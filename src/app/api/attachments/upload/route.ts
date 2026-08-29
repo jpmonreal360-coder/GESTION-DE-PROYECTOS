@@ -73,7 +73,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const workspaceId = rawWorkspaceId.replace(/[^a-zA-Z0-9_.-]/g, '_');
         const projectId = (payload.projectId || 'PRJ-01').replace(/[^a-zA-Z0-9_.-]/g, '_');
         const isImage = payload.mimeType ? payload.mimeType.startsWith('image/') : false;
-        const maximumSizeInBytes = isImage ? 10 * 1024 * 1024 : 20 * 1024 * 1024;
+        // Increase maximum size: 50MB for images, 500MB for documents (PDFs, escrituras, etc.)
+        const maximumSizeInBytes = isImage ? 50 * 1024 * 1024 : 500 * 1024 * 1024;
 
         return {
           allowedContentTypes: ALLOWED_MIME_TYPES,
