@@ -392,6 +392,16 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           previewUrl: fileUrl,
           description: `Enlace externo (${typeLabel}).`,
         });
+      } else if (editItem && (editType === 'doc' || editItem.format)) {
+        // Edit existing document metadata (title, date, project) when no new file upload is queued
+        onSaveDocument({
+          ...editItem,
+          title: title.trim() || editItem.title,
+          projectId,
+          date: docDate,
+          updatedAt: docDate,
+          format: docFormat || editItem.format || 'image',
+        });
       }
     }
 
