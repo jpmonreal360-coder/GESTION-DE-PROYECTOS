@@ -151,7 +151,10 @@ export default function Home() {
 
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareableUrl, setShareableUrl] = useState<string>('');
+  const [readOnlyShareableUrl, setReadOnlyShareableUrl] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
+  const [isReadOnlyCopied, setIsReadOnlyCopied] = useState<boolean>(false);
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState<boolean>(false);
 
   const resolveDefaultWorkspace = () => {
     const isPreviewOrTest =
@@ -332,6 +335,11 @@ export default function Home() {
           const params = new URLSearchParams(search);
           wsId = params.get('w') || resolveDefaultWorkspace();
         }
+
+        if (search.includes('mode=readonly') || search.includes('readonly=true') || hash.includes('mode=readonly') || hash.includes('readonly=true')) {
+          setIsReadOnlyMode(true);
+          setSaveStatus('offline-readonly');
+        }
       }
 
       const isPreviewOrTest =
@@ -474,50 +482,27 @@ export default function Home() {
     }
   }, [workspaceState, queueSave]);
 
-  // Generate Short Shared Link (/w/[shortSlug]) with Upstash Redis Persisted State
+  // Shared link generator pointing directly to active workspaceId
   const handleShareLink = async () => {
     try {
       const baseUrl = window.location.origin;
-      // Generate a short 6-character alphanumeric slug
-      const shortSlug = workspaceId !== 'rc_ws_main' && workspaceId.startsWith('w_')
-        ? workspaceId
-        : 'w_' + Math.random().toString(36).substring(2, 8);
+      const targetWs = workspaceId || resolveDefaultWorkspace();
+      const editUrl = `${baseUrl}/w/${targetWs}`;
+      const readOnlyUrl = `${baseUrl}/w/${targetWs}?mode=readonly`;
 
-      const shortUrl = `${baseUrl}/w/${shortSlug}`;
-
-      setWorkspaceId(shortSlug);
-      realtimeSync.setWorkspaceId(shortSlug);
-
-      const stateObj = {
-        workspaceId: shortSlug,
-        isCustomized: true,
-        projects: workspaceState.projects,
-        expenses: workspaceState.expenses,
-        tasks: workspaceState.tasks,
-        documents: workspaceState.documents,
-        wikiDocs: workspaceState.wikiDocs,
-        categories: workspaceState.categories,
-        projectCategories: workspaceState.projectCategories,
-        batchTables: workspaceState.batchTables,
-        responsibles: workspaceState.responsibles || [],
-        migrationMetadata: workspaceState.migrationMetadata,
-        updatedAt: Date.now()
-      };
-
-      setShareableUrl(shortUrl);
+      setShareableUrl(editUrl);
+      setReadOnlyShareableUrl(readOnlyUrl);
       setIsCopied(false);
+      setIsReadOnlyCopied(false);
       setIsShareModalOpen(true);
 
-      const isSaved = await queueSave(stateObj);
+      // Save active workspace state to cloud without mutating session workspaceId
+      await handleSaveToCloudManual();
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shortUrl);
+        await navigator.clipboard.writeText(editUrl);
         setIsCopied(true);
-        if (isSaved) {
-          triggerToast(`📋 ¡URL Corta (/w/${shortSlug}) copiada y guardada en la Nube!`);
-        } else {
-          triggerToast(`📋 ¡URL Corta (/w/${shortSlug}) copiada al portapapeles!`);
-        }
+        triggerToast(`📋 Enlace directo del Workspace (${targetWs}) copiado al portapapeles.`);
       }
     } catch (err) {
       console.error('Error al compartir link:', err);

@@ -356,6 +356,15 @@ export async function PUT(
       );
     }
 
+    // Validation 1b: Read-only request protection
+    const isReadOnlyHeader = request.headers.get('x-readonly-mode') === 'true';
+    if (isReadOnlyHeader || payload.isReadOnly === true) {
+      return NextResponse.json(
+        { error: 'READONLY_MODE_ENABLED', message: 'Las escrituras están deshabilitadas en modo solo lectura.' },
+        { status: 403, headers: getBuildHeaders() }
+      );
+    }
+
     // Validation 2: Parse and validate expectedRevision strictly
     const rawHeader = request.headers.get('If-Match');
     const rawBody = payload.expectedRevision;
