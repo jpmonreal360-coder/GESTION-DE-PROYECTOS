@@ -52,6 +52,55 @@ export const urlSafeDecodeStr = (str: string): any => {
   return JSON.parse(jsonStr);
 };
 
+// Defense-in-depth: Strip any legacy Base64 strings from payload before network sync to prevent HTTP 413
+export function sanitizeStateForSave(stateObj: any) {
+  if (!stateObj) return stateObj;
+
+  const sanitizedDocs = Array.isArray(stateObj.documents)
+    ? stateObj.documents.map((d: any) => {
+        let fileUrl = d.fileUrl;
+        let previewUrl = d.previewUrl;
+        let content = d.content;
+
+        if (typeof fileUrl === 'string' && fileUrl.startsWith('data:')) {
+          fileUrl = d.attachment?.id ? `/api/attachments/${d.attachment.id}` : '#';
+        }
+        if (typeof previewUrl === 'string' && previewUrl.startsWith('data:')) {
+          previewUrl = d.attachment?.id ? `/api/attachments/${d.attachment.id}` : undefined;
+        }
+        if (typeof content === 'string' && content.startsWith('data:')) {
+          content = undefined;
+        }
+
+        return {
+          ...d,
+          fileUrl,
+          previewUrl,
+          content
+        };
+      })
+    : [];
+
+  const sanitizedExpenses = Array.isArray(stateObj.expenses)
+    ? stateObj.expenses.map((e: any) => {
+        let receiptUrl = e.receiptUrl;
+        if (typeof receiptUrl === 'string' && receiptUrl.startsWith('data:')) {
+          receiptUrl = e.attachment?.id ? `/api/attachments/${e.attachment.id}` : undefined;
+        }
+        return {
+          ...e,
+          receiptUrl
+        };
+      })
+    : [];
+
+  return {
+    ...stateObj,
+    expenses: sanitizedExpenses,
+    documents: sanitizedDocs
+  };
+}
+
 const getNativeApiUrl = (wsId: string) => `/api/workspace/${encodeURIComponent(wsId)}`;
 
 class RealtimeSyncEngine {
@@ -225,8 +274,10 @@ class RealtimeSyncEngine {
     const now = Math.max(Date.now(), this.lastRemoteTimestamp + 1);
     const expectedRevision = this.lastRemoteRevision;
 
+    const sanitizedState = sanitizeStateForSave(stateObj);
+
     const payload: SyncPayload = {
-      ...stateObj,
+      ...sanitizedState,
       workspaceId: this.activeWorkspaceId,
       expectedRevision,
       updatedAt: now
