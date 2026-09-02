@@ -513,10 +513,21 @@ export default function Home() {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(shareableUrl).then(() => {
         setIsCopied(true);
-        triggerToast('📋 ¡Enlace corto copiado al portapapeles!');
+        triggerToast('📋 Enlace de Edición copiado al portapapeles.');
       });
     } else {
-      prompt('Copia este enlace corto para compartir tus datos:', shareableUrl);
+      prompt('Copia este enlace de edición:', shareableUrl);
+    }
+  };
+
+  const copyReadOnlyShareableUrl = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(readOnlyShareableUrl).then(() => {
+        setIsReadOnlyCopied(true);
+        triggerToast('👁️ Enlace de Solo Lectura copiado al portapapeles.');
+      });
+    } else {
+      prompt('Copia este enlace de solo lectura:', readOnlyShareableUrl);
     }
   };
 
@@ -1321,11 +1332,11 @@ export default function Home() {
           onClick={() => setIsShareModalOpen(false)}
         >
           <div
-            className="bg-white dark:bg-[#1C1C1E] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 w-[calc(100vw-1.5rem)] max-w-md shadow-2xl space-y-4"
+            className="bg-white dark:bg-[#1C1C1E] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 w-[calc(100vw-1.5rem)] max-w-lg shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
-              <h3 className="text-base sm:text-lg font-bold">Compartir Enlace Corto</h3>
+              <h3 className="text-base sm:text-lg font-bold">Compartir Acceso al Workspace</h3>
               <button
                 onClick={() => setIsShareModalOpen(false)}
                 className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
@@ -1334,22 +1345,64 @@ export default function Home() {
               </button>
             </div>
             <p className="text-xs text-neutral-500">
-              Este enlace corto (/w/{workspaceId}) consulta tus datos en tiempo real desde la nube sin requerir URLs extensas.
+              Selecciona el tipo de enlace que deseas compartir para tu espacio de trabajo <code className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 font-mono font-bold text-purple-600 dark:text-purple-400">{workspaceId}</code>:
             </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                readOnly
-                value={shareableUrl}
-                className="flex-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-xs font-mono select-all outline-none min-w-0"
-              />
-              <button
-                onClick={copyShareableUrl}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 transition"
-              >
-                {isCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                <span>{isCopied ? 'Copiado' : 'Copiar'}</span>
-              </button>
+
+            {/* Option 1: Full Edit Link */}
+            <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                  ✏️ Enlace de Edición Completa
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                  Acceso Total
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareableUrl}
+                  className="flex-1 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-xs font-mono select-all outline-none min-w-0"
+                />
+                <button
+                  onClick={copyShareableUrl}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 transition shadow-sm"
+                >
+                  {isCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{isCopied ? 'Copiado' : 'Copiar'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Option 2: Read-Only Link */}
+            <div className="p-3.5 rounded-2xl bg-purple-500/5 dark:bg-purple-500/10 border border-purple-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                  👁️ Enlace de Solo Lectura
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold">
+                  Protegido contra edición
+                </span>
+              </div>
+              <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                Ideal para consultores o visores. La persona podrá ver datos en tiempo real pero no modificar nada.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={readOnlyShareableUrl}
+                  className="flex-1 bg-white dark:bg-neutral-800 border border-purple-200 dark:border-purple-900/50 rounded-xl px-3 py-2 text-xs font-mono select-all outline-none min-w-0"
+                />
+                <button
+                  onClick={copyReadOnlyShareableUrl}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 transition shadow-sm"
+                >
+                  {isReadOnlyCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{isReadOnlyCopied ? 'Copiado' : 'Copiar Solo Lectura'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
